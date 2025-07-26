@@ -6,7 +6,7 @@ A plug-and-play performance monitoring tool for FastAPI applications,
 providing real-time metrics and a dashboard.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 import importlib.resources
 from fastapi import FastAPI
