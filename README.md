@@ -1,7 +1,7 @@
 # FastAPI Performance Monitor
 
 [![CI](https://github.com/parhamdavari/fastapi-performance-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/parhamdavari/fastapi-performance-monitor/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/parhamdavari/fastapi-performance-monitor/graph/badge.svg?token=327aad7f-e96c-438b-8b79-f62f92a8a38c)](https://codecov.io/gh/parhamdavari/fastapi-performance-monitor)
+[![codecov](https://codecov.io/gh/parhamdavari/fastapi-performance-monitor/graph/badge.svg)](https://codecov.io/gh/parhamdavari/fastapi-performance-monitor)
 [![PyPI version](https://badge.fury.io/py/fastapi-performance-monitor.svg)](https://badge.fury.io/py/fastapi-performance-monitor)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fastapi-performance-monitor)
 ![PyPI - License](https://img.shields.io/pypi/l/fastapi-performance-monitor)
@@ -10,7 +10,23 @@ A simple, plug-and-play performance monitoring tool for FastAPI applications, pr
 
 ---
 
-**[TODO: Add a screenshot or GIF of the performance dashboard here]**
+<pre>
+╔═════════════════════════════════════════════════════════════════════════════╗
+║ <b>FastAPI Performance Dashboard</b>                                                 ║
+╠════════════════════════════════╦════════════════════════════════════════════╣
+║ <b>SLA Compliance</b>                 ║ <b>Overall Metrics</b>                            ║
+║   Latency SLA Met: <font color="green">true</font>         ║   Total Requests: 1,245                      ║
+║   Availability SLA Met: <font color="green">true</font>    ║   Success Count: 1,230 (98.8%)               ║
+║                                ║   Error Count: 15 (1.2%)                     ║
+╠════════════════════════════════╩════════════════════════════════════════════╣
+║ <b>Endpoint Metrics (GET /items/{item_id})</b>                                 ║
+╠════════════════════════════════╦════════════════════════════════════════════╣
+║   Total Requests: 834          ║   P50 Response Time: 52 ms                   ║
+║   Success Count: 830           ║   P90 Response Time: 110 ms                  ║
+║   Error Count: 4               ║   P95 Response Time: 154 ms                  ║
+║                                ║   P99 Response Time: 230 ms                  ║
+╚════════════════════════════════╩════════════════════════════════════════════╝
+</pre>
 
 ---
 
