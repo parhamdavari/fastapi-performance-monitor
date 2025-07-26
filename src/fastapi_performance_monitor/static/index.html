@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Performance Metrics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .metric-card h3 {
+            color: #4a5568;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-healthy { background: #48bb78; }
+        .status-warning { background: #ed8936; }
+        .status-error { background: #f56565; }
+        
+        .sla-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .sla-item {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .sla-pass {
+            border-color: #48bb78;
+            background: #f0fff4;
+        }
+        
+        .sla-fail {
+            border-color: #f56565;
+            background: #fff5f5;
+        }
+        
+        .sla-pending {
+            border-color: #e2e8f0;
+            background: #f7fafc;
+            color: #718096;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            height: 400px;
+        }
+        
+        .chart-container canvas {
+            max-height: 300px !important;
+        }
+        
+        .chart-container h2 {
+            margin-bottom: 1rem;
+            height: 2rem;
+        }
+        
+        .endpoints-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin: 2rem 0;
+        }
+        
+        .endpoints-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .endpoints-table th,
+        .endpoints-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .endpoints-table th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .grade-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-align: center;
+            min-width: 30px;
+        }
+        
+        .grade-A { background: #c6f6d5; color: #22543d; }
+        .grade-B { background: #fef5e7; color: #744210; }
+        .grade-C { background: #fed7d7; color: #742a2a; }
+        .grade-D { background: #fed7d7; color: #742a2a; }
+        .grade-F { background: #e2e8f0; color: #4a5568; }
+        
+        .refresh-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .refresh-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+        
+        .refresh-button:hover {
+            background: #5a67d8;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        .error-message {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border: 1px solid #feb2b2;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .refresh-controls {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 API Performance Dashboard</h1>
+        <p>Real-time monitoring of middleware metrics and SLA compliance</p>
+    </div>
+    
+    <div class="container">
+        <div class="refresh-controls">
+            <div>
+                <button class="refresh-button" onclick="refreshMetrics()">🔄 Refresh Now</button>
+                <span id="lastUpdated" style="margin-left: 1rem; color: #718096;"></span>
+            </div>
+            <div class="auto-refresh">
+                <label>
+                    <input type="checkbox" id="autoRefresh" checked> Auto-refresh (30s)
+                </label>
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+        
+        <!-- SLA Compliance Section -->
+        <div class="chart-container">
+            <h2>📊 SLA Compliance Status</h2>
+            <div class="sla-grid" id="slaGrid">
+                <!-- SLA items will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Key Metrics -->
+        <div class="metrics-grid" id="metricsGrid">
+            <!-- Metric cards will be populated here -->
+        </div>
+        
+        <!-- Response Time Chart -->
+        <div class="chart-container">
+            <h2>📈 Response Time Trends</h2>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="responseTimeChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Endpoints Performance Table -->
+        <div class="endpoints-table">
+            <h2 style="padding: 1.5rem 1.5rem 0;">🎯 Endpoint Performance</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Endpoint</th>
+                        <th>Requests</th>
+                        <th>Success Rate</th>
+                        <th>Avg Response</th>
+                        <th>P95 Response</th>
+                        <th>Grade</th>
+                        <th>SLA</th>
+                    </tr>
+                </thead>
+                <tbody id="endpointsTableBody">
+                    <!-- Endpoint rows will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8000';
+        const REFRESH_INTERVAL = 30000; // 30 seconds
+        
+        // Global variables
+        let autoRefreshInterval;
+        let responseTimeChart;
+        let metricsHistory = [];
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChart();
+            refreshMetrics();
+            setupAutoRefresh();
+        });
+        
+        function initializeChart() {
+            const ctx = document.getElementById('responseTimeChart').getContext('2d');
+            responseTimeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'P95 Response Time (ms)',
+                            data: [],
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Average Response Time (ms)',
+                            data: [],
+                            borderColor: '#48bb78',
+                            backgroundColor: 'rgba(72, 187, 120, 0.1)',
+                            tension: 0.4,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        async function refreshMetrics() {
+            try {
+                document.body.classList.add('loading');
+                hideError();
+                
+                const response = await fetch(`${API_BASE_URL}/health/metrics`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                updateDashboard(data);
+                updateLastRefreshed();
+                
+            } catch (error) {
+                console.error('Error fetching metrics:', error);
+                showError(`Failed to fetch metrics: ${error.message}`);
+            } finally {
+                document.body.classList.remove('loading');
+            }
+        }
+        
+        function updateDashboard(data) {
+            updateSLAStatus(data.sla_compliance);
+            updateMetricsCards(data.performance_metrics.summary);
+            updateEndpointsTable(data.performance_metrics.endpoint_metrics);
+            updateChart(data.performance_metrics.summary);
+        }
+        
+        function updateSLAStatus(slaCompliance) {
+            const slaGrid = document.getElementById('slaGrid');
+
+            const getSlaItem = (label, target, status) => {
+                let statusClass, statusIcon, statusText;
+
+                if (status === true) {
+                    statusClass = 'sla-pass';
+                    statusIcon = '✅';
+                    statusText = 'PASS';
+                } else if (status === false) {
+                    statusClass = 'sla-fail';
+                    statusIcon = '❌';
+                    statusText = 'FAIL';
+                } else {
+                    statusClass = 'sla-pending';
+                    statusIcon = '⏳';
+                    statusText = 'Collecting...';
+                }
+
+                return `
+                    <div class="sla-item ${statusClass}">
+                        <div class="status-indicator ${status === true ? 'status-healthy' : status === false ? 'status-error' : ''}"></div>
+                        <strong>${label}</strong><br>
+                        <small>${target}</small><br>
+                        ${statusIcon} ${statusText}
+                    </div>
+                `;
+            };
+
+            slaGrid.innerHTML = `
+                ${getSlaItem('Latency SLA', 'P95 < 200ms', slaCompliance.latency_sla_met)}
+                ${getSlaItem('Error Rate SLA', '< 5% errors', slaCompliance.error_rate_sla_met)}
+                ${getSlaItem('Overall SLA', 'All targets met', slaCompliance.overall_sla_met)}
+            `;
+        }
+        
+        function updateMetricsCards(summary) {
+            const metricsGrid = document.getElementById('metricsGrid');
+            
+            const errorRate = summary.error_rate || 0;
+            const avgResponseTime = summary.avg_response_time || 0;
+            const p95ResponseTime = summary.p95_response_time || 0;
+            const totalRequests = summary.total_requests || 0;
+            
+            metricsGrid.innerHTML = `
+                <div class="metric-card">
+                    <h3>Total Requests</h3>
+                    <div class="metric-value" style="color: #667eea;">${totalRequests.toLocaleString()}</div>
+                    <div class="metric-label">All time requests</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Error Rate</h3>
+                    <div class="metric-value" style="color: ${errorRate > 5 ? '#f56565' : '#48bb78'};">
+                        ${errorRate.toFixed(2)}%
+                    </div>
+                    <div class="metric-label">Target: < 5%</div>
+                </div>
+                <div class="metric-card">
+                    <h3>Avg Response Time</h3>
+                    <div class="metric-value" style="color: #ed8936;">${avgResponseTime.toFixed(0)}ms</div>
+                    <div class="metric-label">Mean response time</div>
+                </div>
+                <div class="metric-card">
+                    <h3>P95 Response Time</h3>
+                    <div class="metric-value" style="color: ${p95ResponseTime > 200 ? '#f56565' : '#48bb78'};">
+                        ${p95ResponseTime.toFixed(0)}ms
+                    </div>
+                    <div class="metric-label">Target: < 200ms</div>
+                </div>
+            `;
+        }
+        
+        function updateEndpointsTable(endpoints) {
+            const tableBody = document.getElementById('endpointsTableBody');
+            
+            // Convert endpoints object to array and sort by total requests
+            const endpointArray = Object.entries(endpoints).map(([endpoint, metrics]) => ({
+                endpoint,
+                ...metrics
+            })).sort((a, b) => b.total_requests - a.total_requests);
+            
+            tableBody.innerHTML = endpointArray.map(endpoint => {
+                const successRate = endpoint.total_requests > 0 
+                    ? (endpoint.success_count / endpoint.total_requests * 100).toFixed(1)
+                    : 0;
+                
+                const grade = getPerformanceGrade(endpoint.p95_response_time, successRate);
+                const slaCompliant = endpoint.p95_response_time <= 200;
+                
+                return `
+                    <tr>
+                        <td><code>${endpoint.endpoint}</code></td>
+                        <td>${endpoint.total_requests.toLocaleString()}</td>
+                        <td>${successRate}%</td>
+                        <td>${endpoint.avg_response_time.toFixed(0)}ms</td>
+                        <td>${endpoint.p95_response_time.toFixed(0)}ms</td>
+                        <td><span class="grade-badge grade-${grade}">${grade}</span></td>
+                        <td>${slaCompliant ? '✅' : '❌'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function getPerformanceGrade(p95Time, successRate) {
+            if (p95Time <= 50 && successRate >= 99) return 'A';
+            if (p95Time <= 100 && successRate >= 95) return 'B';
+            if (p95Time <= 200 && successRate >= 90) return 'C';
+            if (p95Time <= 500 && successRate >= 80) return 'D';
+            return 'F';
+        }
+        
+        function updateChart(summary) {
+            const now = new Date().toLocaleTimeString();
+            
+            // Add new data point
+            metricsHistory.push({
+                time: now,
+                p95: summary.p95_response_time || 0,
+                avg: summary.avg_response_time || 0
+            });
+            
+            // Keep only last 20 data points
+            if (metricsHistory.length > 20) {
+                metricsHistory.shift();
+            }
+            
+            // Update chart
+            responseTimeChart.data.labels = metricsHistory.map(point => point.time);
+            responseTimeChart.data.datasets[0].data = metricsHistory.map(point => point.p95);
+            responseTimeChart.data.datasets[1].data = metricsHistory.map(point => point.avg);
+            responseTimeChart.update();
+        }
+        
+        function setupAutoRefresh() {
+            const autoRefreshCheckbox = document.getElementById('autoRefresh');
+            
+            function startAutoRefresh() {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                autoRefreshInterval = setInterval(refreshMetrics, REFRESH_INTERVAL);
+            }
+            
+            function stopAutoRefresh() {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+            
+            autoRefreshCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    startAutoRefresh();
+                } else {
+                    stopAutoRefresh();
+                }
+            });
+            
+            // Start auto-refresh if checkbox is checked
+            if (autoRefreshCheckbox.checked) {
+                startAutoRefresh();
+            }
+        }
+        
+        function updateLastRefreshed() {
+            const lastUpdated = document.getElementById('lastUpdated');
+            lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        function hideError() {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.style.display = 'none';
+        }
+    </script>
+</body>
+</html> 

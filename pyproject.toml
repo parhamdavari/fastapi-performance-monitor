@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastapi-performance-monitor"
+version = "0.1.2"
+authors = [
+  { name="Parham Davari", email="parham.davarii@gmail.com" },
+]
+description = "A plug-and-play performance monitoring tool for FastAPI with a real-time dashboard."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Framework :: FastAPI",
+]
+dependencies = [
+    "fastapi",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/parhamdavari/fastapi-performance-monitor"
+"Bug Tracker" = "https://github.com/parhamdavari/fastapi-performance-monitor/issues"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",      # For measuring coverage
+    "pytest-asyncio>=0.18.0", # For handling async test functions
+    "httpx>=0.23.0",          # The modern async HTTP client for testing
+    "numpy>=1.20.0",          # For calculating trusted percentile values in tests
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+
+[tool.setuptools]
+include_package_data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.coverage.run]
+source = ["src/fastapi_performance_monitor"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
