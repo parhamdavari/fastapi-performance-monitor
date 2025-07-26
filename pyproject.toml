@@ -43,7 +43,7 @@ testpaths = [
 ]
 
 [tool.setuptools]
-include_package_data = true
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
