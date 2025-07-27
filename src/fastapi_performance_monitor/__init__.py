@@ -10,6 +10,7 @@ __version__ = "0.1.3"
 
 import importlib.resources
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from starlette.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -55,9 +56,14 @@ def add_performance_monitor(
     try:
         # This is the robust way to find package data files
         static_path = importlib.resources.files(__name__) / "static"
+        
+        # Convert to string path for StaticFiles compatibility
+        static_path_str = str(static_path)
+        
+        # Mount static files directory
         app.mount(
             dashboard_path,
-            StaticFiles(directory=static_path, html=True),
+            StaticFiles(directory=static_path_str, html=True),
             name="performance_dashboard"
         )
         print(f"Performance dashboard mounted at: {dashboard_path}")

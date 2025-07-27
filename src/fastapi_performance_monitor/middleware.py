@@ -39,20 +39,24 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         
         endpoint_path = self._normalize_path(request.url.path)
         
-        self.metrics.record_request(
-            endpoint=endpoint_path,
-            method=request.method,
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-            correlation_id=correlation_id
-        )
+        # Skip recording metrics for performance dashboard routes
+        if not endpoint_path.startswith('/performance'):
+            self.metrics.record_request(
+                endpoint=endpoint_path,
+                method=request.method,
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+                correlation_id=correlation_id
+            )
         
         response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
         
-        if self.enable_detailed_logging and (duration_ms > 1000 or response.status_code >= 400):
-            self._log_performance_alert(request, endpoint_path, response.status_code, duration_ms, correlation_id)
-        
-        self._check_sla_violation(request, endpoint_path, correlation_id)
+        # Only log and check SLA for non-performance routes
+        if not endpoint_path.startswith('/performance'):
+            if self.enable_detailed_logging and (duration_ms > 1000 or response.status_code >= 400):
+                self._log_performance_alert(request, endpoint_path, response.status_code, duration_ms, correlation_id)
+            
+            self._check_sla_violation(request, endpoint_path, correlation_id)
         
         return response
     
