@@ -225,7 +225,3 @@ class PerformanceMetrics:
             summary["p99_response_time"] = p99
 
         return summary
-
-
-# Global metrics instance
-_metrics = PerformanceMetrics()

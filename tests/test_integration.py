@@ -9,8 +9,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_performance_monitor import add_performance_monitor
-from fastapi_performance_monitor.metrics import _metrics as global_metrics
+from fastapi_performance_monitor import (
+    METRICS_STATE_KEY,
+    add_performance_monitor,
+)
 
 # Pytest-asyncio marker
 pytestmark = pytest.mark.asyncio
@@ -19,12 +21,8 @@ pytestmark = pytest.mark.asyncio
 def test_app():
     """
     Fixture to create a fresh FastAPI app with the monitor for each test function.
-    Using 'function' scope ensures strict test isolation, as the tests modify
-    the state of the global metrics collector.
+    Using 'function' scope ensures strict test isolation.
     """
-    # Reset the global metrics instance before each test
-    global_metrics.__init__()
-
     app = FastAPI()
     add_performance_monitor(app)
 
@@ -81,9 +79,11 @@ async def test_sla_initial_state_is_null(client: TestClient):
 async def test_sla_fail_state(client: TestClient):
     """Verify that when P95 exceeds the threshold, the SLA status is false."""
     # Generate 20 requests with a high response time
+    app = client.app
+    metrics = getattr(app.state, METRICS_STATE_KEY)
     for i in range(20):
         # Manually record a slow request
-        global_metrics.record_request(
+        metrics.record_request(
             endpoint="/test/slow", method="GET", status_code=200, duration_ms=300.0 + i
         )
 
@@ -96,8 +96,10 @@ async def test_sla_fail_state(client: TestClient):
 async def test_sla_pass_state(client: TestClient):
     """Verify that when P95 is within the threshold, the SLA status is true."""
     # Generate 20 requests with a fast response time
+    app = client.app
+    metrics = getattr(app.state, METRICS_STATE_KEY)
     for i in range(20):
-        global_metrics.record_request(
+        metrics.record_request(
             endpoint="/test/fast", method="GET", status_code=200, duration_ms=50.0 + i
         )
 

@@ -7,8 +7,7 @@ from typing import Callable
 
 from starlette.datastructures import Headers, MutableHeaders
 
-# Import from within the package
-from .metrics import _metrics
+from .metrics import PerformanceMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +15,16 @@ logger = logging.getLogger(__name__)
 class PerformanceMiddleware:
     """ASGI middleware that records latency, status codes, and SLA metrics."""
 
-    def __init__(self, app: Callable, enable_detailed_logging: bool = True):
+    def __init__(
+        self,
+        app: Callable,
+        *,
+        metrics: PerformanceMetrics,
+        enable_detailed_logging: bool = True,
+    ):
         self.app = app
         self.enable_detailed_logging = enable_detailed_logging
-        self.metrics = _metrics
+        self.metrics = metrics
 
     async def __call__(self, scope, receive, send):
         """Process ASGI calls and record metrics for HTTP requests."""
