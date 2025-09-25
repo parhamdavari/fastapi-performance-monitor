@@ -108,3 +108,18 @@ async def test_sla_pass_state(client: TestClient):
 
     assert data["sla_compliance"]["latency_sla_met"] is True
     assert data["sla_compliance"]["overall_sla_met"] is True
+
+
+async def test_exception_is_translated_to_500_response(client: TestClient):
+    """Unhandled exceptions should return JSON 500 responses and emit metrics."""
+    response = client.get("/test/error")
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal Server Error"}
+    assert "x-response-time-ms" in response.headers
+
+    metrics_response = client.get("/health/metrics")
+    data = metrics_response.json()["performance_metrics"]["endpoint_metrics"]
+
+    error_stats = data["GET /test/error"]
+    assert error_stats["total_requests"] == 1
+    assert error_stats["error_count"] == 1
