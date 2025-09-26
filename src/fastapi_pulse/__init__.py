@@ -88,7 +88,7 @@ def add_pulse(
     )
 
     # 5. Include the pulse router bound to this metrics instance
-    app.include_router(create_pulse_router(metrics_instance))
+    app.include_router(create_pulse_router(metrics_instance), include_in_schema=False)
 
     # 6. Mount the static dashboard, finding its path within the package
     try:
