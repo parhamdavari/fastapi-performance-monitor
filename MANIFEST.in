@@ -1,1 +1,1 @@
-recursive-include src/fastapi_performance_monitor/static *
+recursive-include src/fastapi_pulse/static *

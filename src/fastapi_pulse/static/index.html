@@ -95,11 +95,17 @@
         <header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm border-b border-black/5 dark:border-white/5" role="banner">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div class="flex h-16 items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <svg class="text-primary h-8 w-8" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4 12H7L10 2L13 22L16 12H20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-                        </svg>
-                        <h1 class="text-xl font-bold tracking-tight">Pulse</h1>
+                    <div class="flex items-center gap-6">
+                        <div class="flex items-center gap-4">
+                            <svg class="text-primary h-8 w-8" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M4 12H7L10 2L13 22L16 12H20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                            </svg>
+                            <h1 class="text-xl font-bold tracking-tight">Pulse</h1>
+                        </div>
+                        <nav class="flex items-center gap-4 text-sm font-medium">
+                            <span class="text-primary">Dashboard</span>
+                            <a class="text-black/70 dark:text-white/70 hover:text-primary dark:hover:text-primary transition-colors" href="endpoints.html">Endpoints</a>
+                        </nav>
                     </div>
                     <div class="flex items-center gap-3">
                         <button id="refreshBtn" class="p-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-black dark:text-white transition-all-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background-light dark:focus-visible:ring-offset-background-dark" title="Refresh metrics">

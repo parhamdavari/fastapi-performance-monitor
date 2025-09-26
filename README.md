@@ -13,6 +13,7 @@ Check your FastAPI's pulse with one line of code. Instant health monitoring with
 - **Beautiful dashboard**: Live metrics at `/pulse`
 - **Production ready**: Rolling windows, efficient percentiles, zero memory leaks
 - **Developer friendly**: Logs slow requests and errors automatically
+- **One-click health checks**: Auto-discover endpoints and probe them directly from the UI
 
 ## Quickstart
 
@@ -34,10 +35,14 @@ def read_root():
 
 ## Your API's Vital Signs
 
-| What                    | Where                |
-|------------------------|----------------------|
-| **Live Dashboard**   | `GET /pulse`         |
-| **JSON Metrics**     | `GET /health/pulse`  |
+| What                    | Where                     |
+|------------------------|---------------------------|
+| **Live Dashboard**   | `GET /pulse`              |
+| **Endpoints Console** | `GET /pulse/endpoints.html` |
+| **JSON Metrics**     | `GET /health/pulse`       |
+| **Endpoint Registry** | `GET /health/pulse/endpoints` |
+| **Trigger Probe**     | `POST /health/pulse/probe` |
+| **Probe Status**      | `GET /health/pulse/probe/{job_id}` |
 
 The dashboard shows your API's heartbeat in real-time. The JSON endpoint gives you raw data for alerts and automation.
 

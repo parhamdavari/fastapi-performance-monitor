@@ -1,9 +1,11 @@
 """
 Integration tests for FastAPI Pulse.
 
-These tests ensure that the middleware, router, and metrics collector
-work together correctly within a real FastAPI application.
+These tests ensure that the middleware, router, metrics collector,
+and probe manager work together correctly within a real FastAPI application.
 """
+
+import asyncio
 
 import pytest
 from fastapi import FastAPI
@@ -123,3 +125,38 @@ async def test_exception_is_translated_to_500_response(client: TestClient):
     error_stats = data["GET /test/error"]
     assert error_stats["total_requests"] == 1
     assert error_stats["error_count"] == 1
+
+
+async def test_endpoint_registry_and_probe_flow(client: TestClient):
+    """Registry endpoint should list routes and probe API should execute them."""
+    # Registry should expose the test routes.
+    response = client.get("/health/pulse/endpoints")
+    assert response.status_code == 200
+    registry_payload = response.json()
+    endpoint_ids = {entry["id"] for entry in registry_payload["endpoints"]}
+    assert "GET /test/success" in endpoint_ids
+    assert "GET /test/error" in endpoint_ids
+
+    # Trigger a probe job for all endpoints.
+    start_response = client.post("/health/pulse/probe")
+    assert start_response.status_code == 200
+    job_info = start_response.json()
+    job_id = job_info["job_id"]
+
+    # Poll for completion.
+    status = None
+    for _ in range(30):
+        await asyncio.sleep(0.1)
+        status_response = client.get(f"/health/pulse/probe/{job_id}")
+        assert status_response.status_code == 200
+        status = status_response.json()
+        if status["status"] == "completed":
+            break
+    assert status is not None
+    assert status["status"] == "completed"
+
+    # Endpoints API should now include last probe data.
+    refreshed = client.get("/health/pulse/endpoints").json()
+    statuses = {row["id"]: row["last_probe"]["status"] for row in refreshed["endpoints"]}
+    assert statuses["GET /test/success"] in {"healthy", "warning"}
+    assert statuses["GET /test/error"] == "critical"

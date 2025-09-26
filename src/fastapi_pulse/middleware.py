@@ -50,9 +50,7 @@ class PulseMiddleware:
         raw_path = scope.get("path", "/")
         skip_tracking = self._should_skip_tracking(raw_path)
         endpoint_path = self._normalize_path(raw_path)
-        track_metrics = (
-            not skip_tracking and not endpoint_path.startswith("/performance")
-        )
+        track_metrics = not skip_tracking
 
         start_time = time.perf_counter()
         status_code = 500

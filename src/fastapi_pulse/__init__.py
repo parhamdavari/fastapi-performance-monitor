@@ -17,10 +17,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .metrics import PulseMetrics
 from .middleware import PulseMiddleware
+from .registry import PulseEndpointRegistry
+from .probe import PulseProbeManager
 from .router import create_pulse_router
-
-
-PULSE_STATE_KEY = "fastapi_pulse_metrics"
+from .constants import (
+    PULSE_ENDPOINT_REGISTRY_KEY,
+    PULSE_PROBE_MANAGER_KEY,
+    PULSE_STATE_KEY,
+)
 
 def add_pulse(
     app: FastAPI,
@@ -69,7 +73,13 @@ def add_pulse(
         dashboard_prefix,
     )
 
-    # 3. Add the pulse middleware
+    # 3. Create endpoint registry and probe manager
+    registry = PulseEndpointRegistry(app, exclude_prefixes=exclude_prefixes)
+    setattr(app.state, PULSE_ENDPOINT_REGISTRY_KEY, registry)
+    probe_manager = PulseProbeManager(app, metrics_instance)
+    setattr(app.state, PULSE_PROBE_MANAGER_KEY, probe_manager)
+
+    # 4. Add the pulse middleware
     app.add_middleware(
         PulseMiddleware,
         metrics=metrics_instance,
@@ -77,10 +87,10 @@ def add_pulse(
         exclude_path_prefixes=exclude_prefixes,
     )
 
-    # 4. Include the pulse router bound to this metrics instance
+    # 5. Include the pulse router bound to this metrics instance
     app.include_router(create_pulse_router(metrics_instance))
 
-    # 5. Mount the static dashboard, finding its path within the package
+    # 6. Mount the static dashboard, finding its path within the package
     try:
         # This is the robust way to find package data files
         static_path = importlib.resources.files(__name__) / "static"
@@ -99,4 +109,10 @@ def add_pulse(
         print(f"Warning: Could not mount pulse dashboard: {e}")
 
 # Expose a clean public API for the package
-__all__ = ["add_pulse", "PulseMetrics", "PULSE_STATE_KEY"]
+__all__ = [
+    "add_pulse",
+    "PulseMetrics",
+    "PULSE_STATE_KEY",
+    "PULSE_ENDPOINT_REGISTRY_KEY",
+    "PULSE_PROBE_MANAGER_KEY",
+]
