@@ -113,7 +113,8 @@ export class ChartManager {
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         tension: 0.4,
-                        fill: true
+                        fill: true,
+                        yAxisID: 'y'
                     },
                     {
                         label: 'Average Response Time (ms)',
@@ -121,7 +122,18 @@ export class ChartManager {
                         borderColor: '#48bb78',
                         backgroundColor: 'rgba(72, 187, 120, 0.1)',
                         tension: 0.4,
-                        fill: false
+                        fill: false,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Requests per Minute',
+                        data: [],
+                        borderColor: '#f5b041',
+                        backgroundColor: 'rgba(245, 176, 65, 0.15)',
+                        borderDash: [6, 6],
+                        tension: 0.35,
+                        fill: false,
+                        yAxisID: 'y1'
                     }
                 ]
             },
@@ -143,6 +155,20 @@ export class ChartManager {
                             text: 'Response Time (ms)'
                         }
                     },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Requests / Minute'
+                        },
+                        ticks: {
+                            precision: 0
+                        }
+                    },
                     x: {
                         title: {
                             display: true,
@@ -158,7 +184,13 @@ export class ChartManager {
                     tooltip: {
                         callbacks: {
                             title: (context) => `Time: ${context[0].label}`,
-                            label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(1)}ms`
+                            label: (context) => {
+                                const value = context.parsed.y;
+                                if (context.dataset.yAxisID === 'y1') {
+                                    return `${context.dataset.label}: ${Math.round(value)} rpm`;
+                                }
+                                return `${context.dataset.label}: ${Number(value).toFixed(1)} ms`;
+                            }
                         }
                     }
                 }
@@ -181,9 +213,10 @@ export class ChartManager {
             <div style="margin-bottom: 1rem;">
                 <strong>📊 Live Metrics</strong>
             </div>
-            <div id="fallbackMetrics" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 400px; margin: 0 auto;">
+            <div id="fallbackMetrics" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; max-width: 480px; margin: 0 auto;">
                 <div>P95: <strong id="fallbackP95">--</strong></div>
                 <div>Avg: <strong id="fallbackAvg">--</strong></div>
+                <div>RPM: <strong id="fallbackRpm">--</strong></div>
             </div>
             <small style="color: #666; margin-top: 1rem; display: block;">
                 Chart visualization unavailable. Showing latest metrics only.
@@ -200,10 +233,15 @@ export class ChartManager {
         const now = new Date().toLocaleTimeString();
         
         // Add new data point
+        const p95 = Number(summary.p95_response_time) || 0;
+        const avg = Number(summary.avg_response_time) || 0;
+        const rpm = Number(summary.requests_per_minute) || 0;
+
         this.data.push({
             time: now,
-            p95: summary.p95_response_time || 0,
-            avg: summary.avg_response_time || 0
+            p95,
+            avg,
+            rpm: Math.max(0, rpm)
         });
 
         // Keep only recent data points
@@ -225,6 +263,7 @@ export class ChartManager {
         this.chart.data.labels = this.data.map(point => point.time);
         this.chart.data.datasets[0].data = this.data.map(point => point.p95);
         this.chart.data.datasets[1].data = this.data.map(point => point.avg);
+        this.chart.data.datasets[2].data = this.data.map(point => point.rpm);
         
         this.chart.update(this.config.updateAnimation ? 'active' : 'none');
     }
@@ -235,9 +274,12 @@ export class ChartManager {
     updateFallbackChart(summary) {
         const p95El = document.getElementById('fallbackP95');
         const avgEl = document.getElementById('fallbackAvg');
-        
+        const rpmEl = document.getElementById('fallbackRpm');
+
         if (p95El) p95El.textContent = `${(summary.p95_response_time || 0).toFixed(1)}ms`;
         if (avgEl) avgEl.textContent = `${(summary.avg_response_time || 0).toFixed(1)}ms`;
+        const rpm = Number(summary.requests_per_minute) || 0;
+        if (rpmEl) rpmEl.textContent = `${Math.max(0, Math.round(rpm))} rpm`;
     }
 
     /**

@@ -28,10 +28,15 @@ class PulseMiddleware:
         *,
         metrics: PulseMetrics,
         enable_detailed_logging: bool = True,
+        exclude_path_prefixes: tuple[str, ...] | None = None,
     ):
         self.app = app
         self.enable_detailed_logging = enable_detailed_logging
         self.metrics = metrics
+        self.exclude_path_prefixes = tuple(
+            prefix if prefix.startswith('/') else f'/{prefix}'
+            for prefix in (exclude_path_prefixes or ())
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Process ASGI calls and record metrics for HTTP requests."""
@@ -43,8 +48,11 @@ class PulseMiddleware:
         correlation_id = headers.get("x-correlation-id", "unknown")
         method = scope.get("method", "GET")
         raw_path = scope.get("path", "/")
+        skip_tracking = self._should_skip_tracking(raw_path)
         endpoint_path = self._normalize_path(raw_path)
-        track_metrics = not endpoint_path.startswith("/performance")
+        track_metrics = (
+            not skip_tracking and not endpoint_path.startswith("/performance")
+        )
 
         start_time = time.perf_counter()
         status_code = 500
@@ -179,6 +187,15 @@ class PulseMiddleware:
         if cached_duration is not None:
             return cached_duration
         return (time.perf_counter() - start_time) * 1000
+
+    def _should_skip_tracking(self, path: str) -> bool:
+        for prefix in self.exclude_path_prefixes:
+            normalized = prefix.rstrip('/') or '/'
+            if path == normalized:
+                return True
+            if normalized != '/' and path.startswith(normalized + '/'):
+                return True
+        return False
 
     async def _emit_fallback_response(self, send: Send, duration_ms: float) -> None:
         """Send a JSON 500 response when the downstream app fails early."""

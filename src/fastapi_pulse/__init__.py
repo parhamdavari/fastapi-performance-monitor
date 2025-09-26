@@ -61,11 +61,20 @@ def add_pulse(
     # 2. Store pulse collector on application state for reuse
     setattr(app.state, PULSE_STATE_KEY, metrics_instance)
 
+    # Determine which paths should be excluded from metric tracking
+    dashboard_prefix = dashboard_path if dashboard_path.startswith('/') else f'/{dashboard_path}'
+    dashboard_prefix = dashboard_prefix.rstrip('/') or '/'
+    exclude_prefixes = (
+        '/health/pulse',
+        dashboard_prefix,
+    )
+
     # 3. Add the pulse middleware
     app.add_middleware(
         PulseMiddleware,
         metrics=metrics_instance,
-        enable_detailed_logging=enable_detailed_logging
+        enable_detailed_logging=enable_detailed_logging,
+        exclude_path_prefixes=exclude_prefixes,
     )
 
     # 4. Include the pulse router bound to this metrics instance

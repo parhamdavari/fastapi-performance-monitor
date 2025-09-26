@@ -42,6 +42,19 @@ def read_root():
 
 The dashboard shows your API's heartbeat in real-time. The JSON endpoint gives you raw data for alerts and automation.
 
+### `/health/pulse` response schema
+
+The JSON payload now exposes the same metrics the dashboard consumes in production:
+
+- `summary`
+  - `requests_per_minute`: Rolling window request rate (based on the configured `window_seconds`)
+  - `window_request_count`: Number of requests currently inside the rolling window
+  - `success_rate`: Percentage of successful responses in the window
+  - `p50_response_time`, `p95_response_time`, `p99_response_time`: Real TDigest percentiles when enough samples exist
+- `status_codes`: Per-endpoint histogram of HTTP status codes for error distribution charts
+
+Existing fields (`total_requests`, `error_rate`, etc.) are unchanged, so consumers that do not need the new metrics can safely ignore them.
+
 ## Configuration
 
 ```python

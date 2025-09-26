@@ -199,17 +199,23 @@ class PulseMetrics:
                 "request_counts": dict(self.request_counts),
                 "error_counts": dict(self.error_counts),
                 "endpoint_metrics": dict(self.endpoint_metrics),
+                "status_codes": {
+                    endpoint: dict(status_counts)
+                    for endpoint, status_counts in self.status_codes.items()
+                },
                 "summary": self._calculate_summary()
             }
-    
+
     def _calculate_summary(self) -> Dict[str, Any]:
         """Calculate summary metrics across all endpoints."""
         total_requests = sum(self.request_counts.values())
         total_errors = sum(self.error_counts.values())
 
+        window_request_count = self._global_latency.count()
         avg_latency = self._global_latency.mean()
         p95 = self._global_latency.percentile(95)
         p99 = self._global_latency.percentile(99)
+        p50 = self._global_latency.percentile(50)
 
         summary = {
             "total_requests": total_requests,
@@ -217,11 +223,22 @@ class PulseMetrics:
             "error_rate": (total_errors / total_requests * 100) if total_requests > 0 else 0,
             "avg_response_time": avg_latency,
             "window_seconds": self.window_seconds,
+            "requests_per_minute": (window_request_count / self.window_seconds * 60)
+            if self.window_seconds > 0
+            else 0,
+            "window_request_count": window_request_count,
         }
+
+        if total_requests > 0:
+            summary["success_rate"] = max(0.0, 100.0 - summary["error_rate"])
+        else:
+            summary["success_rate"] = None
 
         if p95 is not None:
             summary["p95_response_time"] = p95
         if p99 is not None:
             summary["p99_response_time"] = p99
+        if p50 is not None:
+            summary["p50_response_time"] = p50
 
         return summary
