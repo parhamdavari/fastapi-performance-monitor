@@ -3,7 +3,6 @@
 Check your FastAPI's pulse with one line of code. Instant health monitoring with a beautiful dashboard.
 
 [![CI](https://github.com/parhamdavari/fastapi-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/parhamdavari/fastapi-pulse/actions/workflows/ci.yml)
-[![PyPI version](https://badge.fury.io/py/fastapi-pulse.svg)](https://pypi.org/project/fastapi-pulse/)
 
 ---
 
@@ -37,8 +36,8 @@ def read_root():
 
 | What                    | Where                |
 |------------------------|----------------------|
-| 📊 **Live Dashboard**   | `GET /pulse`         |
-| 🔍 **JSON Metrics**     | `GET /health/pulse`  |
+| **Live Dashboard**   | `GET /pulse`         |
+| **JSON Metrics**     | `GET /health/pulse`  |
 
 The dashboard shows your API's heartbeat in real-time. The JSON endpoint gives you raw data for alerts and automation.
 
