@@ -2,14 +2,15 @@
  * Component-based system for the performance dashboard
  */
 
-import { 
-    escapeHtml, 
-    safeSetText, 
-    createElement, 
-    formatNumber, 
+import {
+    escapeHtml,
+    safeSetText,
+    createElement,
+    formatNumber,
     calculatePerformanceGrade,
-    getStatusClass 
+    getStatusClass
 } from './utils.js';
+
 
 /**
  * Base component class

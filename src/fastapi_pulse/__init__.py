@@ -1,12 +1,12 @@
 """
-FastAPI Performance Monitor
-===========================
+FastAPI Pulse
+=============
 
-A plug-and-play performance monitoring tool for FastAPI applications,
-providing real-time metrics and a dashboard.
+Check your FastAPI's pulse with one line of code.
+Instant health monitoring with a beautiful dashboard.
 """
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 import importlib.resources
 from typing import Callable, Optional
@@ -15,28 +15,28 @@ from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from .metrics import PerformanceMetrics
-from .middleware import PerformanceMiddleware
-from .router import create_metrics_router
+from .metrics import PulseMetrics
+from .middleware import PulseMiddleware
+from .router import create_pulse_router
 
 
-METRICS_STATE_KEY = "fastapi_performance_monitor_metrics"
+PULSE_STATE_KEY = "fastapi_pulse_metrics"
 
-def add_performance_monitor(
-    app: FastAPI, 
+def add_pulse(
+    app: FastAPI,
     enable_detailed_logging: bool = True,
-    dashboard_path: str = "/performance",
+    dashboard_path: str = "/pulse",
     enable_cors: bool = True,
-    metrics: Optional[PerformanceMetrics] = None,
-    metrics_factory: Optional[Callable[[], PerformanceMetrics]] = None,
+    metrics: Optional[PulseMetrics] = None,
+    metrics_factory: Optional[Callable[[], PulseMetrics]] = None,
 ):
     """
-    Adds the performance monitoring middleware and dashboard to a FastAPI app.
+    Adds pulse monitoring to your FastAPI app with one line of code.
 
     Args:
         app: The FastAPI application instance.
         enable_detailed_logging: If True, logs slow requests and errors.
-        dashboard_path: The path where the performance dashboard will be served.
+        dashboard_path: The path where the pulse dashboard will be served.
         enable_cors: If True, adds CORS middleware for dashboard access.
     """
     if metrics is not None and metrics_factory is not None:
@@ -46,7 +46,7 @@ def add_performance_monitor(
         metrics_factory() if metrics_factory is not None else metrics
     )
     if metrics_instance is None:
-        metrics_instance = PerformanceMetrics()
+        metrics_instance = PulseMetrics()
 
     # 1. Add CORS middleware if enabled (for dashboard functionality)
     if enable_cors:
@@ -58,18 +58,18 @@ def add_performance_monitor(
             allow_headers=["*"],
         )
 
-    # 2. Store metrics collector on application state for reuse
-    setattr(app.state, METRICS_STATE_KEY, metrics_instance)
+    # 2. Store pulse collector on application state for reuse
+    setattr(app.state, PULSE_STATE_KEY, metrics_instance)
 
-    # 3. Add the performance middleware
+    # 3. Add the pulse middleware
     app.add_middleware(
-        PerformanceMiddleware, 
+        PulseMiddleware,
         metrics=metrics_instance,
         enable_detailed_logging=enable_detailed_logging
     )
 
-    # 4. Include the metrics router bound to this metrics instance
-    app.include_router(create_metrics_router(metrics_instance))
+    # 4. Include the pulse router bound to this metrics instance
+    app.include_router(create_pulse_router(metrics_instance))
 
     # 5. Mount the static dashboard, finding its path within the package
     try:
@@ -83,11 +83,11 @@ def add_performance_monitor(
         app.mount(
             dashboard_path,
             StaticFiles(directory=static_path_str, html=True),
-            name="performance_dashboard"
+            name="pulse_dashboard"
         )
-        print(f"Performance dashboard mounted at: {dashboard_path}")
+        print(f"Pulse dashboard mounted at: {dashboard_path}")
     except Exception as e:
-        print(f"Warning: Could not mount performance dashboard: {e}")
+        print(f"Warning: Could not mount pulse dashboard: {e}")
 
 # Expose a clean public API for the package
-__all__ = ["add_performance_monitor", "PerformanceMetrics", "METRICS_STATE_KEY"]
+__all__ = ["add_pulse", "PulseMetrics", "PULSE_STATE_KEY"]

@@ -1,4 +1,4 @@
-"""ASGI middleware to collect performance metrics and monitor API health."""
+"""ASGI middleware to collect pulse metrics and monitor API health."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Callable
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import Message, Receive, Scope, Send
 
-from .metrics import PerformanceMetrics
+from .metrics import PulseMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +19,14 @@ SLA_LATENCY_THRESHOLD_MS = 200
 DEFAULT_ERROR_BODY = b'{"detail":"Internal Server Error"}'
 
 
-class PerformanceMiddleware:
+class PulseMiddleware:
     """ASGI middleware that records latency, status codes, and SLA metrics."""
 
     def __init__(
         self,
         app: Callable,
         *,
-        metrics: PerformanceMetrics,
+        metrics: PulseMetrics,
         enable_detailed_logging: bool = True,
     ):
         self.app = app

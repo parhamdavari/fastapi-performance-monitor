@@ -1,5 +1,5 @@
 """
-Integration tests for the FastAPI Performance Monitor.
+Integration tests for FastAPI Pulse.
 
 These tests ensure that the middleware, router, and metrics collector
 work together correctly within a real FastAPI application.
@@ -9,9 +9,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_performance_monitor import (
-    METRICS_STATE_KEY,
-    add_performance_monitor,
+from fastapi_pulse import (
+    PULSE_STATE_KEY,
+    add_pulse,
 )
 
 # Pytest-asyncio marker
@@ -24,7 +24,7 @@ def test_app():
     Using 'function' scope ensures strict test isolation.
     """
     app = FastAPI()
-    add_performance_monitor(app)
+    add_pulse(app)
 
     @app.get("/test/success")
     async def success_endpoint():
@@ -45,7 +45,7 @@ def client(test_app):
 async def test_middleware_and_router_integration(client: TestClient):
     """
     Verify the end-to-end loop: a request is made, the middleware records it,
-    and the /health/metrics endpoint reports it.
+    and the /health/pulse endpoint reports it.
     """
     # Make a request to a dummy endpoint
     response = client.get("/test/success")
@@ -53,7 +53,7 @@ async def test_middleware_and_router_integration(client: TestClient):
     assert "x-response-time-ms" in response.headers
 
     # Now, check the metrics endpoint
-    metrics_response = client.get("/health/metrics")
+    metrics_response = client.get("/health/pulse")
     assert metrics_response.status_code == 200
     data = metrics_response.json()
 
@@ -70,7 +70,7 @@ async def test_sla_initial_state_is_null(client: TestClient):
     # With a fresh app, make one request (not enough for P95)
     client.get("/test/success")
 
-    metrics_response = client.get("/health/metrics")
+    metrics_response = client.get("/health/pulse")
     data = metrics_response.json()
 
     assert data["sla_compliance"]["latency_sla_met"] is None
@@ -80,14 +80,14 @@ async def test_sla_fail_state(client: TestClient):
     """Verify that when P95 exceeds the threshold, the SLA status is false."""
     # Generate 20 requests with a high response time
     app = client.app
-    metrics = getattr(app.state, METRICS_STATE_KEY)
+    metrics = getattr(app.state, PULSE_STATE_KEY)
     for i in range(20):
         # Manually record a slow request
         metrics.record_request(
             endpoint="/test/slow", method="GET", status_code=200, duration_ms=300.0 + i
         )
 
-    metrics_response = client.get("/health/metrics")
+    metrics_response = client.get("/health/pulse")
     data = metrics_response.json()
 
     assert data["sla_compliance"]["latency_sla_met"] is False
@@ -97,13 +97,13 @@ async def test_sla_pass_state(client: TestClient):
     """Verify that when P95 is within the threshold, the SLA status is true."""
     # Generate 20 requests with a fast response time
     app = client.app
-    metrics = getattr(app.state, METRICS_STATE_KEY)
+    metrics = getattr(app.state, PULSE_STATE_KEY)
     for i in range(20):
         metrics.record_request(
             endpoint="/test/fast", method="GET", status_code=200, duration_ms=50.0 + i
         )
 
-    metrics_response = client.get("/health/metrics")
+    metrics_response = client.get("/health/pulse")
     data = metrics_response.json()
 
     assert data["sla_compliance"]["latency_sla_met"] is True
@@ -117,7 +117,7 @@ async def test_exception_is_translated_to_500_response(client: TestClient):
     assert response.json() == {"detail": "Internal Server Error"}
     assert "x-response-time-ms" in response.headers
 
-    metrics_response = client.get("/health/metrics")
+    metrics_response = client.get("/health/pulse")
     data = metrics_response.json()["performance_metrics"]["endpoint_metrics"]
 
     error_stats = data["GET /test/error"]

@@ -1,60 +1,100 @@
-# FastAPI Performance Monitor
+# FastAPI Pulse
 
-Lightweight drop-in monitoring for FastAPI apps with live metrics and a bundled dashboard.
+Check your FastAPI's pulse with one line of code. Instant health monitoring with a beautiful dashboard.
 
-[![CI](https://github.com/parhamdavari/fastapi-performance-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/parhamdavari/fastapi-performance-monitor/actions/workflows/ci.yml)
-[![PyPI version](https://badge.fury.io/py/fastapi-performance-monitor.svg)](https://pypi.org/project/fastapi-performance-monitor/)
+[![CI](https://github.com/parhamdavari/fastapi-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/parhamdavari/fastapi-pulse/actions/workflows/ci.yml)
+[![PyPI version](https://badge.fury.io/py/fastapi-pulse.svg)](https://pypi.org/project/fastapi-pulse/)
 
 ---
 
-## Features
+## Why FastAPI Pulse?
 
-- Instrument any FastAPI project with a single helper call.
-- Collect latency, throughput, error-rate, and percentile metrics without extra storage.
-- Serve a static dashboard and JSON API for dashboards, alerting, or automation.
-- Ships with sensible defaults yet allows request logging and CORS customization.
-
-## Install
-
-```bash
-pip install fastapi-performance-monitor
-```
+- **One line setup**: `add_pulse(app)` and you're monitoring
+- **Zero configuration**: Sensible defaults, works out of the box
+- **Beautiful dashboard**: Live metrics at `/pulse`
+- **Production ready**: Rolling windows, efficient percentiles, zero memory leaks
+- **Developer friendly**: Logs slow requests and errors automatically
 
 ## Quickstart
 
+```bash
+pip install fastapi-pulse
+```
+
 ```python
 from fastapi import FastAPI
-from fastapi_performance_monitor import add_performance_monitor
+from fastapi_pulse import add_pulse
 
 app = FastAPI()
-add_performance_monitor(app)
+add_pulse(app)  # That's it!
 
 @app.get("/")
 def read_root():
     return {"message": "Hello, world!"}
 ```
 
-## Dashboard & Metrics Endpoints
+## Your API's Vital Signs
 
-| Purpose    | Path                              |
-|------------|-----------------------------------|
-| Dashboard  | `GET /performance`                |
-| Metrics    | `GET /health/metrics`             |
+| What                    | Where                |
+|------------------------|----------------------|
+| 📊 **Live Dashboard**   | `GET /pulse`         |
+| 🔍 **JSON Metrics**     | `GET /health/pulse`  |
 
-The dashboard provides a minimal UI for live inspection. The JSON endpoint exposes the same data for external tools.
+The dashboard shows your API's heartbeat in real-time. The JSON endpoint gives you raw data for alerts and automation.
 
 ## Configuration
 
-`add_performance_monitor(app, enable_detailed_logging=True, dashboard_path="/performance", enable_cors=True)`
+```python
+add_pulse(
+    app,
+    enable_detailed_logging=True,  # Log slow requests (>1s) and errors
+    dashboard_path="/pulse",       # Where to mount the dashboard
+    enable_cors=True,              # Allow cross-origin requests
+)
+```
 
-- `enable_detailed_logging`: flag slow requests (>1s) and error responses in logs.
-- `dashboard_path`: mount point for the static dashboard assets.
-- `enable_cors`: relaxes CORS for the dashboard; tighten it for production if needed.
+## What Gets Measured
+
+**Request Metrics**:
+
+- Latency percentiles (P95, P99)
+- Request count and error rates
+- Response time distribution
+
+**Smart Grouping**:
+
+- `/users/123` → `/users/{id}`
+- `/api/v1/posts/456` → `/api/v1/posts/{id}`
+
+**Rolling Windows**: Metrics automatically expire after 5 minutes, preventing memory leaks in long-running applications.
+
+## Custom Metrics (Advanced)
+
+```python
+from fastapi_pulse import add_pulse, PulseMetrics
+
+# Create custom metrics collector
+metrics = PulseMetrics(window_seconds=600)  # 10-minute window
+add_pulse(app, metrics=metrics)
+
+# Access metrics in your routes
+@app.get("/custom")
+def custom_endpoint():
+    pulse_metrics = app.state.fastapi_pulse_metrics
+    stats = pulse_metrics.get_metrics()
+    return {"current_load": stats["summary"]["total_requests"]}
+```
+
+## Production Tips
+
+- Enable `enable_detailed_logging=False` in production to reduce log noise
+- Use the JSON endpoint (`/health/pulse`) for monitoring systems like Prometheus
+- The dashboard is optimized for development; build custom dashboards using the JSON API for production
 
 ## Contributing
 
-Issues and pull requests are welcome. See `CONTRIBUTING.md` for local setup and tooling expectations.
+Issues and pull requests welcome! This tool is designed to be simple and reliable.
 
 ## License
 
-Released under the MIT License. See `LICENSE` for details.
+MIT License - see `LICENSE` file for details.

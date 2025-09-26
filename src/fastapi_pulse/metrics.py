@@ -1,4 +1,4 @@
-"""Thread-safe performance metrics collector with rolling quantile tracking."""
+"""Thread-safe pulse metrics collector with rolling quantile tracking."""
 
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ class RollingWindowDigest:
         self._trim(time.time())
 
 
-class PerformanceMetrics:
+class PulseMetrics:
     """Thread-safe performance metrics collector."""
 
     def __init__(

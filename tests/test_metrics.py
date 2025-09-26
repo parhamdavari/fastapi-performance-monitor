@@ -1,14 +1,14 @@
 """
-Tests for the core PerformanceMetrics collector.
+Tests for the core PulseMetrics collector.
 """
 
 import pytest
 import numpy as np
-from fastapi_performance_monitor.metrics import PerformanceMetrics
+from fastapi_pulse.metrics import PulseMetrics
 
 def test_initial_state():
-    """Verify that a new PerformanceMetrics instance is empty."""
-    metrics = PerformanceMetrics()
+    """Verify that a new PulseMetrics instance is empty."""
+    metrics = PulseMetrics()
     summary = metrics.get_metrics()
     assert summary["summary"]["total_requests"] == 0
     assert "p95_response_time" not in summary["summary"]
@@ -25,7 +25,7 @@ def test_initial_state():
 )
 def test_record_request_increments_counts(status_code, success_count, error_count):
     """Verify that record_request correctly increments success and error counts."""
-    metrics = PerformanceMetrics()
+    metrics = PulseMetrics()
     metrics.record_request(
         endpoint="/test", method="GET", status_code=status_code, duration_ms=100
     )
@@ -41,7 +41,7 @@ def test_p95_calculation_is_correct():
     Verify the P95 percentile calculation against numpy's implementation
     to ensure mathematical correctness.
     """
-    metrics = PerformanceMetrics()
+    metrics = PulseMetrics()
     durations = list(range(1, 21))  # A simple list [1, 2, 3, ..., 20]
 
     for d in durations:
@@ -58,7 +58,7 @@ def test_p95_calculation_is_correct():
 
 def test_percentile_with_few_datapoints():
     """Ensure percentile calculation works with minimal data (>= 2 points)."""
-    metrics = PerformanceMetrics()
+    metrics = PulseMetrics()
     durations = [10, 20]
 
     for d in durations:
@@ -73,7 +73,7 @@ def test_percentile_with_few_datapoints():
 
 def test_percentile_with_insufficient_data():
     """Ensure p95 is not calculated for a single data point."""
-    metrics = PerformanceMetrics()
+    metrics = PulseMetrics()
     metrics.record_request(endpoint="/", method="GET", status_code=200, duration_ms=10)
     
     summary = metrics.get_metrics()["summary"]

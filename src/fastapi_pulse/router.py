@@ -1,19 +1,19 @@
-"""Factory for FastAPI routers that expose performance metrics."""
+"""Factory for FastAPI routers that expose pulse metrics."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-from .metrics import PerformanceMetrics
+from .metrics import PulseMetrics
 
 
-def create_metrics_router(metrics: PerformanceMetrics) -> APIRouter:
-    """Build a router that serves performance metrics derived from *metrics*."""
+def create_pulse_router(metrics: PulseMetrics) -> APIRouter:
+    """Build a router that serves pulse metrics derived from *metrics*."""
 
-    router = APIRouter(prefix="/health", tags=["Performance Metrics"])
+    router = APIRouter(prefix="/health", tags=["Pulse Metrics"])
 
-    @router.get("/metrics", response_model_exclude_none=True)
-    def get_performance_metrics():
+    @router.get("/pulse", response_model_exclude_none=True)
+    def get_pulse_metrics():
         performance_metrics = metrics.get_metrics()
 
         summary = performance_metrics.get("summary", {})
@@ -53,4 +53,4 @@ def create_metrics_router(metrics: PerformanceMetrics) -> APIRouter:
     return router
 
 
-__all__ = ["create_metrics_router"]
+__all__ = ["create_pulse_router"]

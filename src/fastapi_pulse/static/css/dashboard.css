@@ -533,6 +533,7 @@ body {
     }
 }
 
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
     *,

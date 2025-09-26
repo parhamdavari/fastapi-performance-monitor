@@ -4,12 +4,12 @@
 
 import { MetricsAPI, ConnectivityMonitor } from './api.js';
 import { ChartManager } from './charts.js';
-import { 
-    MetricCard, 
-    SLAStatus, 
-    EndpointsTable, 
-    ErrorMessage, 
-    LoadingIndicator 
+import {
+    MetricCard,
+    SLAStatus,
+    EndpointsTable,
+    ErrorMessage,
+    LoadingIndicator,
 } from './components.js';
 import { formatNumber, debounce } from './utils.js';
 
@@ -119,9 +119,10 @@ export class PerformanceDashboard {
         // Error message component
         const errorContainer = document.getElementById('errorContainer');
         this.components.errorMessage = new ErrorMessage(errorContainer);
-        
+
         // Loading indicator
         this.components.loadingIndicator = new LoadingIndicator();
+
 
         // Initialize empty components that will be populated on data load
         this.components.metricCards = [];

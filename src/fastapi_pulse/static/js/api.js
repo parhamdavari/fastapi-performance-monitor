@@ -30,7 +30,7 @@ export class MetricsAPI {
         try {
             const response = await retryWithBackoff(
                 async () => {
-                    const response = await fetch(`${this.baseUrl}/health/metrics`, {
+                    const response = await fetch(`${this.baseUrl}/health/pulse`, {
                         method: 'GET',
                         headers: {
                             'Accept': 'application/json',
@@ -78,7 +78,7 @@ export class MetricsAPI {
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
             // Use GET request with cache control to minimize data transfer
-            const response = await fetch(`${this.baseUrl}/health/metrics`, {
+            const response = await fetch(`${this.baseUrl}/health/pulse`, {
                 method: 'GET',
                 headers: {
                     'Cache-Control': 'no-cache',
