@@ -2,23 +2,35 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from .metrics import PulseMetrics
-from .probe import PulseProbeManager
-from .registry import EndpointInfo, PulseEndpointRegistry
 from .constants import (
     PULSE_ENDPOINT_REGISTRY_KEY,
+    PULSE_PAYLOAD_STORE_KEY,
     PULSE_PROBE_MANAGER_KEY,
 )
+from .metrics import PulseMetrics
+from .payload_store import PulsePayloadStore
+from .probe import PulseProbeManager
+from .registry import EndpointInfo, PulseEndpointRegistry
+from .sample_builder import SamplePayloadBuilder
 
 
 class ProbeRequest(BaseModel):
     endpoints: Optional[List[str]] = None
+
+
+class PayloadUpdate(BaseModel):
+    path_params: Dict[str, Any] = {}
+    query: Dict[str, Any] = {}
+    headers: Dict[str, Any] = {}
+    body: Optional[Any] = None
+    media_type: Optional[str] = None
 
 
 def _get_registry(request: Request) -> PulseEndpointRegistry:
@@ -35,6 +47,13 @@ def _get_probe_manager(request: Request) -> PulseProbeManager:
     return manager
 
 
+def _get_payload_store(request: Request) -> PulsePayloadStore:
+    store = getattr(request.app.state, PULSE_PAYLOAD_STORE_KEY, None)
+    if store is None:
+        raise RuntimeError("Pulse payload store is not initialized. Did you call add_pulse()?")
+    return store
+
+
 def _serialize_probe_result(result) -> Dict[str, Any]:
     if result is None:
         return {
@@ -44,6 +63,7 @@ def _serialize_probe_result(result) -> Dict[str, Any]:
             "error": None,
             "checked_at": None,
             "checked_at_iso": None,
+            "payload": None,
         }
 
     checked_at_iso = None
@@ -57,6 +77,7 @@ def _serialize_probe_result(result) -> Dict[str, Any]:
         "error": result.error,
         "checked_at": result.checked_at,
         "checked_at_iso": checked_at_iso,
+        "payload": result.payload,
     }
 
 
@@ -64,6 +85,7 @@ def _serialize_endpoint(
     endpoint: EndpointInfo,
     endpoint_metrics: Dict[str, Any],
     probe_result,
+    payload_info: Dict[str, Any],
 ) -> Dict[str, Any]:
     metrics_snapshot = endpoint_metrics.get(endpoint.id, {})
     total_requests = metrics_snapshot.get("total_requests", 0)
@@ -88,6 +110,7 @@ def _serialize_endpoint(
             "error_rate": error_rate,
         },
         "last_probe": _serialize_probe_result(probe_result),
+        "payload": payload_info,
     }
 
 
@@ -138,23 +161,58 @@ def create_pulse_router(metrics: PulseMetrics) -> APIRouter:
     def list_endpoints(request: Request):
         registry = _get_registry(request)
         manager = _get_probe_manager(request)
+        payload_store = _get_payload_store(request)
+        builder = SamplePayloadBuilder(registry.openapi_schema)
 
         endpoints = registry.list_endpoints()
         metrics_snapshot = metrics.get_metrics().get("endpoint_metrics", {})
         last_job = manager.last_job()
         probe_results = last_job.results if last_job else {}
+        payload_entries = []
+        auto_count = 0
+        requires_input_count = 0
 
-        payload = [
-            _serialize_endpoint(endpoint, metrics_snapshot, probe_results.get(endpoint.id))
-            for endpoint in endpoints
-        ]
+        for endpoint in endpoints:
+            custom_payload = payload_store.get(endpoint.id)
+            generated_payload = builder.build(endpoint)
+            effective_payload = None
+            source = "none"
+            if custom_payload:
+                effective_payload = deepcopy(custom_payload)
+                source = "custom"
+            elif generated_payload:
+                effective_payload = deepcopy(generated_payload)
+                source = "generated"
+
+            can_probe = effective_payload is not None
+            if can_probe:
+                auto_count += 1
+                effective_payload["source"] = source
+            else:
+                requires_input_count += 1
+
+            payload_info = {
+                "source": source,
+                "custom": custom_payload,
+                "generated": generated_payload,
+                "effective": effective_payload,
+            }
+
+            payload_entries.append(
+                _serialize_endpoint(
+                    endpoint,
+                    metrics_snapshot,
+                    probe_results.get(endpoint.id),
+                    payload_info,
+                )
+            )
 
         response: Dict[str, Any] = {
-            "endpoints": payload,
+            "endpoints": payload_entries,
             "summary": {
                 "total": len(endpoints),
-                "auto_probed": len([ep for ep in endpoints if not ep.requires_input]),
-                "requires_input": len([ep for ep in endpoints if ep.requires_input]),
+                "auto_probed": auto_count,
+                "requires_input": requires_input_count,
             },
         }
 
@@ -196,6 +254,29 @@ def create_pulse_router(metrics: PulseMetrics) -> APIRouter:
         if job is None:
             raise HTTPException(status_code=404, detail="Probe job not found")
         return job.to_dict()
+
+    @router.put("/pulse/probe/{endpoint_id:path}/payload")
+    def save_payload(request: Request, endpoint_id: str, update: PayloadUpdate):
+        registry = _get_registry(request)
+        payload_store = _get_payload_store(request)
+        endpoint_map = registry.get_endpoint_map()
+        if endpoint_id not in endpoint_map:
+            raise HTTPException(status_code=404, detail="Endpoint not found")
+
+        stored = payload_store.set(endpoint_id, update.model_dump())
+        stored["source"] = "custom"
+        return {"status": "ok", "payload": stored}
+
+    @router.delete("/pulse/probe/{endpoint_id:path}/payload")
+    def delete_payload(request: Request, endpoint_id: str):
+        registry = _get_registry(request)
+        payload_store = _get_payload_store(request)
+        endpoint_map = registry.get_endpoint_map()
+        if endpoint_id not in endpoint_map:
+            raise HTTPException(status_code=404, detail="Endpoint not found")
+
+        payload_store.delete(endpoint_id)
+        return {"status": "ok"}
 
     return router
 

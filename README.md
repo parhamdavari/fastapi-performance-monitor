@@ -67,7 +67,10 @@ add_pulse(
     enable_detailed_logging=True,  # Log slow requests (>1s) and errors
     dashboard_path="/pulse",       # Where to mount the dashboard
     enable_cors=True,              # Allow cross-origin requests
+    payload_config_path="pulse_probes.json",  # Persist custom probe payloads
 )
+
+- If `payload_config_path` is omitted, Pulse writes overrides to `pulse_probes.json` relative to your FastAPI app's root path.
 ```
 
 ## What Gets Measured

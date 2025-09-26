@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import FastAPI
 
@@ -25,6 +25,11 @@ class EndpointInfo:
     requires_input: bool
     has_path_params: bool
     has_request_body: bool
+    path_parameters: List[Dict[str, Any]]
+    query_parameters: List[Dict[str, Any]]
+    header_parameters: List[Dict[str, Any]]
+    request_body_media_type: Optional[str]
+    request_body_schema: Optional[Dict[str, Any]]
 
     def to_dict(self) -> Dict[str, object]:
         """Serialize endpoint info for JSON responses."""
@@ -39,6 +44,7 @@ class PulseEndpointRegistry:
         self.app = app
         self._endpoints: List[EndpointInfo] = []
         self._schema_hash: Optional[str] = None
+        self._openapi_schema: Dict[str, Any] = {}
         prefixes = set(DEFAULT_MANAGEMENT_PREFIXES)
         if exclude_prefixes:
             for prefix in exclude_prefixes:
@@ -49,6 +55,7 @@ class PulseEndpointRegistry:
     def refresh(self) -> None:
         """Refresh endpoint metadata when OpenAPI schema changes."""
         schema = self.app.openapi()
+        self._openapi_schema = schema
         paths = schema.get("paths", {})
         schema_hash = hashlib.sha256(
             json.dumps(paths, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -79,12 +86,45 @@ class PulseEndpointRegistry:
                 parameters = list(common_parameters)
                 parameters.extend(operation.get("parameters", []))
 
-                has_path_params = any(
-                    (param.get("in") == "path" and param.get("required", False))
-                    for param in parameters
+                path_parameters = [
+                    param for param in parameters if param.get("in") == "path"
+                ]
+                query_parameters = [
+                    param for param in parameters if param.get("in") == "query"
+                ]
+                header_parameters = [
+                    param for param in parameters if param.get("in") == "header"
+                ]
+
+                has_path_params = bool(path_parameters)
+
+                request_body_schema: Optional[Dict[str, Any]] = None
+                request_body_media_type: Optional[str] = None
+                request_body = operation.get("requestBody") or {}
+                if isinstance(request_body, dict):
+                    content = request_body.get("content")
+                    if isinstance(content, dict) and content:
+                        preferred_media_types = [
+                            "application/json",
+                            "application/x-www-form-urlencoded",
+                            "multipart/form-data",
+                        ]
+                        selected_media_type = None
+                        for media_type in preferred_media_types:
+                            if media_type in content:
+                                selected_media_type = media_type
+                                break
+                        if selected_media_type is None:
+                            selected_media_type = next(iter(content.keys()))
+                        request_body_media_type = selected_media_type
+                        request_body_schema = content[selected_media_type].get("schema")
+
+                has_request_body = request_body_schema is not None
+                required_query = any(
+                    param.get("required") and param.get("schema", {}).get("default") is None
+                    for param in query_parameters
                 )
-                has_request_body = bool(operation.get("requestBody"))
-                requires_input = has_path_params or has_request_body
+                requires_input = has_path_params or has_request_body or required_query
 
                 endpoint = EndpointInfo(
                     id=f"{method_upper} {path}",
@@ -95,6 +135,11 @@ class PulseEndpointRegistry:
                     requires_input=requires_input,
                     has_path_params=has_path_params,
                     has_request_body=has_request_body,
+                    path_parameters=path_parameters,
+                    query_parameters=query_parameters,
+                    header_parameters=header_parameters,
+                    request_body_media_type=request_body_media_type,
+                    request_body_schema=request_body_schema,
                 )
                 endpoints.append(endpoint)
 
@@ -114,3 +159,8 @@ class PulseEndpointRegistry:
     def auto_probe_targets(self) -> List[EndpointInfo]:
         """Return endpoints that can be automatically probed."""
         return [endpoint for endpoint in self.list_endpoints() if not endpoint.requires_input]
+
+    @property
+    def openapi_schema(self) -> Dict[str, Any]:
+        self.refresh()
+        return self._openapi_schema

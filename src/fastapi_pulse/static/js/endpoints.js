@@ -10,8 +10,8 @@ class EndpointsAPI {
             const res = await fetch(`${this.baseUrl}/health/pulse/endpoints`, {
                 headers: {
                     'Accept': 'application/json',
-                    'Cache-Control': 'no-cache'
-                }
+                    'Cache-Control': 'no-cache',
+                },
             });
             if (!res.ok) {
                 throw new Error(`Failed to load endpoints: HTTP ${res.status}`);
@@ -26,16 +26,14 @@ class EndpointsAPI {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
             },
             body: JSON.stringify(endpointIds ? { endpoints: endpointIds } : {}),
         });
-
         if (!response.ok) {
             const detail = await response.json().catch(() => ({}));
             throw new Error(detail?.detail || `Failed to start probe: HTTP ${response.status}`);
         }
-
         return response.json();
     }
 
@@ -43,11 +41,41 @@ class EndpointsAPI {
         const response = await fetch(`${this.baseUrl}/health/pulse/probe/${jobId}`, {
             headers: {
                 'Accept': 'application/json',
-                'Cache-Control': 'no-cache'
-            }
+                'Cache-Control': 'no-cache',
+            },
         });
         if (!response.ok) {
             throw new Error(`Failed to fetch probe status: HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async savePayload(endpointId, payload) {
+        const response = await fetch(`${this.baseUrl}/health/pulse/probe/${encodeURIComponent(endpointId)}/payload`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail?.detail || `Failed to save payload: HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async deletePayload(endpointId) {
+        const response = await fetch(`${this.baseUrl}/health/pulse/probe/${encodeURIComponent(endpointId)}/payload`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail?.detail || `Failed to reset payload: HTTP ${response.status}`);
         }
         return response.json();
     }
@@ -93,6 +121,27 @@ function formatRelativeTime(timestamp) {
     return `${days}d ago`;
 }
 
+function prettyJson(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch (error) {
+        return String(value);
+    }
+}
+
+function parseJsonOrDefault(input, fallback) {
+    const trimmed = (input || '').trim();
+    if (!trimmed) return fallback;
+    try {
+        return JSON.parse(trimmed);
+    } catch (error) {
+        throw new Error('Invalid JSON data');
+    }
+}
+
 export class EndpointsDashboard {
     constructor(config = {}) {
         this.api = new EndpointsAPI(config.api || {});
@@ -104,7 +153,9 @@ export class EndpointsDashboard {
             filter: '',
             currentJobId: null,
         };
-        this.pollTimer = null;
+        this.selectedEndpointId = null;
+        this.panelSource = 'generated';
+        this.hasCustomPayload = false;
     }
 
     init = async () => {
@@ -125,6 +176,31 @@ export class EndpointsDashboard {
             requiresInput: document.getElementById('summaryRequiresInput'),
             lastRun: document.getElementById('summaryLastRun'),
         };
+
+        this.panel = document.getElementById('endpointPanel');
+        this.panelBackdrop = document.getElementById('panelBackdrop');
+        this.panelMethod = document.getElementById('panelEndpointMethod');
+        this.panelPath = document.getElementById('panelEndpointPath');
+        this.panelStatus = document.getElementById('panelStatusBadge');
+        this.panelLastChecked = document.getElementById('panelLastChecked');
+        this.panelMetrics = {
+            avg: document.getElementById('panelMetricAvg'),
+            errorRate: document.getElementById('panelMetricErrorRate'),
+            totalRequests: document.getElementById('panelMetricTotal'),
+        };
+        this.panelMessage = document.getElementById('panelMessage');
+        this.panelSourceButtons = document.querySelectorAll('[data-payload-source]');
+        this.payloadEditors = {
+            path: document.getElementById('payloadPathInput'),
+            query: document.getElementById('payloadQueryInput'),
+            headers: document.getElementById('payloadHeadersInput'),
+            body: document.getElementById('payloadBodyInput'),
+        };
+        this.panelRunButton = document.getElementById('runSingleProbeBtn');
+        this.panelSaveButton = document.getElementById('savePayloadBtn');
+        this.panelSaveRunButton = document.getElementById('saveAndRunPayloadBtn');
+        this.panelResetButton = document.getElementById('resetPayloadBtn');
+        this.panelCloseButton = document.getElementById('closePanelBtn');
     }
 
     bindEvents() {
@@ -136,8 +212,43 @@ export class EndpointsDashboard {
         }
 
         if (this.runButton) {
-            this.runButton.addEventListener('click', () => this.handleRunProbe());
+            this.runButton.addEventListener('click', () => this.handleRunAll());
         }
+
+        if (this.tableBody) {
+            this.tableBody.addEventListener('click', (event) => {
+                const row = event.target.closest('tr[data-endpoint-id]');
+                if (!row) return;
+                const endpointId = row.dataset.endpointId;
+                this.openPanel(endpointId);
+            });
+        }
+
+        if (this.panelBackdrop) {
+            this.panelBackdrop.addEventListener('click', () => this.closePanel());
+        }
+
+        if (this.panelCloseButton) {
+            this.panelCloseButton.addEventListener('click', () => this.closePanel());
+        }
+
+        this.panelSourceButtons?.forEach((button) => {
+            button.addEventListener('click', () => {
+                const source = button.dataset.payloadSource;
+                this.applyPayloadSource(source);
+            });
+        });
+
+        this.panelSaveButton?.addEventListener('click', () => this.savePayload(false));
+        this.panelSaveRunButton?.addEventListener('click', () => this.savePayload(true));
+        this.panelRunButton?.addEventListener('click', () => this.runSingleProbe());
+        this.panelResetButton?.addEventListener('click', () => this.resetPayload());
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && this.isPanelOpen()) {
+                this.closePanel();
+            }
+        });
     }
 
     async refresh() {
@@ -146,6 +257,15 @@ export class EndpointsDashboard {
         this.state.summary = data.summary || {};
         this.renderSummary();
         this.renderTable();
+
+        if (this.selectedEndpointId) {
+            const endpoint = this.state.endpoints.find((item) => item.id === this.selectedEndpointId);
+            if (endpoint) {
+                this.populatePanel(endpoint);
+            } else {
+                this.closePanel();
+            }
+        }
     }
 
     renderSummary() {
@@ -173,7 +293,6 @@ export class EndpointsDashboard {
 
     renderTable() {
         const endpoints = this.filteredEndpoints();
-
         if (!endpoints.length) {
             this.emptyState.classList.remove('hidden');
         } else {
@@ -185,9 +304,13 @@ export class EndpointsDashboard {
             const avgResponse = endpoint.metrics?.avg_response_time;
             const errorRate = endpoint.metrics?.error_rate;
             const lastChecked = endpoint.last_probe?.checked_at;
+            const payloadSource = endpoint.payload?.source;
+            const customBadge = payloadSource === 'custom'
+                ? '<span class="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">Custom</span>'
+                : '';
 
             return `
-                <tr class="table-row">
+                <tr class="table-row cursor-pointer" data-endpoint-id="${endpoint.id}">
                     <td class="px-4 py-3">
                         <span class="status-pill ${statusInfo.className}">
                             <span class="status-dot ${statusInfo.dotClass}"></span>
@@ -195,9 +318,8 @@ export class EndpointsDashboard {
                         </span>
                     </td>
                     <td class="px-4 py-3">
-                        <div class="font-medium text-sm">${endpoint.method} ${endpoint.path}</div>
+                        <div class="font-medium text-sm flex items-center">${endpoint.method} ${endpoint.path}${customBadge}</div>
                         ${endpoint.summary ? `<div class="text-xs text-black/60 dark:text-white/50">${endpoint.summary}</div>` : ''}
-                        ${endpoint.requires_input ? '<div class="text-xs text-amber-400">Requires input</div>' : ''}
                     </td>
                     <td class="px-4 py-3">${formatLatency(avgResponse)}</td>
                     <td class="px-4 py-3">${formatErrorRate(errorRate)}</td>
@@ -209,51 +331,74 @@ export class EndpointsDashboard {
         this.tableBody.innerHTML = rows || '';
     }
 
-    async handleRunProbe() {
+    async handleRunAll() {
         if (this.state.currentJobId) {
             return;
         }
-
         try {
-            this.setProbeBanner('Starting health check…', 'info');
+            this.setProbeBanner('Running health check…', 'info');
             this.runButton.disabled = true;
-            this.runButton.classList.add('opacity-60');
-
-            const response = await this.api.startProbe();
-            this.state.currentJobId = response.job_id;
-            await this.pollJob(response.job_id);
+            const { job_id } = await this.api.startProbe();
+            this.state.currentJobId = job_id;
+            await this.pollJob(job_id);
         } catch (error) {
-            console.error('Failed to start probe', error);
-            this.setProbeBanner(error.message || 'Failed to run health check', 'error');
+            console.error(error);
+            this.setProbeBanner(error.message || 'Failed to start probe', 'error');
         } finally {
             this.runButton.disabled = false;
-            this.runButton.classList.remove('opacity-60');
             this.state.currentJobId = null;
         }
     }
 
-    async pollJob(jobId) {
+    async runSingleProbe() {
+        if (!this.selectedEndpointId) return;
+        try {
+            this.showPanelMessage('info', 'Running probe…');
+            const { job_id } = await this.api.startProbe([this.selectedEndpointId]);
+            await this.pollJob(job_id, true);
+        } catch (error) {
+            console.error(error);
+            this.showPanelMessage('error', error.message || 'Probe failed');
+        }
+    }
+
+    async pollJob(jobId, silenceBanner = false) {
         const start = Date.now();
         while (true) {
             if (Date.now() - start > this.jobTimeoutMs) {
-                this.setProbeBanner('Health check timed out. Some endpoints may still be running.', 'warning');
+                if (!silenceBanner) {
+                    this.setProbeBanner('Health check timed out.', 'warning');
+                } else {
+                    this.showPanelMessage('warning', 'Probe timed out.');
+                }
                 break;
             }
 
             try {
                 const status = await this.api.getProbeStatus(jobId);
                 const { completed, total } = status;
-                const progressText = completed >= total ? 'Finishing…' : `${completed} / ${total} endpoints checked…`;
-                this.setProbeBanner(progressText, 'info');
-
+                const progressText = `${completed} / ${total} endpoints checked…`;
+                if (!silenceBanner) {
+                    this.setProbeBanner(progressText, 'info');
+                } else {
+                    this.showPanelMessage('info', progressText);
+                }
                 if (status.status === 'completed') {
-                    this.setProbeBanner('Health check completed successfully.', 'success');
+                    if (!silenceBanner) {
+                        this.setProbeBanner('Health check completed successfully.', 'success');
+                    } else {
+                        this.showPanelMessage('success', 'Probe completed successfully.');
+                    }
                     await this.refresh();
                     break;
                 }
             } catch (error) {
-                console.error('Probe status failed', error);
-                this.setProbeBanner('Failed to track probe status. Check logs for details.', 'error');
+                console.error(error);
+                if (!silenceBanner) {
+                    this.setProbeBanner('Failed to track probe status.', 'error');
+                } else {
+                    this.showPanelMessage('error', 'Failed to track probe status.');
+                }
                 break;
             }
 
@@ -263,10 +408,8 @@ export class EndpointsDashboard {
 
     setProbeBanner(message, state) {
         if (!this.statusBanner) return;
-
         this.statusBanner.textContent = message;
         this.statusBanner.classList.remove('hidden', 'text-primary', 'border-primary/30', 'text-red-500', 'border-red-500/40', 'text-yellow-400', 'border-yellow-400/30', 'text-emerald-400', 'border-emerald-400/30');
-
         switch (state) {
             case 'success':
                 this.statusBanner.classList.add('text-emerald-400', 'border-emerald-400/30');
@@ -279,6 +422,154 @@ export class EndpointsDashboard {
                 break;
             default:
                 this.statusBanner.classList.add('text-primary', 'border-primary/30');
+        }
+    }
+
+    openPanel(endpointId) {
+        const endpoint = this.state.endpoints.find((item) => item.id === endpointId);
+        if (!endpoint) return;
+        this.selectedEndpointId = endpointId;
+        this.populatePanel(endpoint);
+        this.panelBackdrop.classList.remove('hidden');
+        this.panel.classList.remove('hidden');
+    }
+
+    closePanel() {
+        this.selectedEndpointId = null;
+        this.panelBackdrop.classList.add('hidden');
+        this.panel.classList.add('hidden');
+    }
+
+    isPanelOpen() {
+        return !this.panel.classList.contains('hidden');
+    }
+
+    populatePanel(endpoint) {
+        this.clearPanelMessage();
+        this.panelMethod.textContent = endpoint.method;
+        this.panelPath.textContent = endpoint.path;
+
+        const statusInfo = statusConfig(endpoint.last_probe?.status);
+        this.panelStatus.textContent = statusInfo.label;
+        this.panelStatus.className = `inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold ${statusInfo.className}`;
+        this.panelLastChecked.textContent = formatRelativeTime(endpoint.last_probe?.checked_at);
+
+        this.panelMetrics.avg.textContent = formatLatency(endpoint.metrics?.avg_response_time);
+        this.panelMetrics.errorRate.textContent = formatErrorRate(endpoint.metrics?.error_rate);
+        this.panelMetrics.totalRequests.textContent = formatNumber(endpoint.metrics?.total_requests || 0);
+
+        const payload = endpoint.payload || {};
+        const source = payload.source && payload.source !== 'none' ? payload.source : 'generated';
+        this.panelSource = source;
+        this.hasCustomPayload = Boolean(payload.custom);
+
+        const effective = payload.effective || {};
+        this.payloadEditors.path.value = prettyJson(effective.path_params ?? payload.custom?.path_params ?? payload.generated?.path_params ?? {});
+        this.payloadEditors.query.value = prettyJson(effective.query ?? payload.custom?.query ?? payload.generated?.query ?? {});
+        this.payloadEditors.headers.value = prettyJson(effective.headers ?? payload.custom?.headers ?? payload.generated?.headers ?? {});
+        this.payloadEditors.body.value = prettyJson(effective.body ?? payload.custom?.body ?? payload.generated?.body ?? null);
+
+        this.updatePayloadEditorsState();
+        this.updateSourceButtons();
+    }
+
+    applyPayloadSource(source) {
+        this.panelSource = source === 'custom' ? 'custom' : 'generated';
+        this.updatePayloadEditorsState();
+        this.updateSourceButtons();
+    }
+
+    updatePayloadEditorsState() {
+        const isCustom = this.panelSource === 'custom';
+        Object.values(this.payloadEditors).forEach((editor) => {
+            if (editor) {
+                editor.readOnly = !isCustom;
+                editor.classList.toggle('opacity-60', !isCustom);
+            }
+        });
+        if (this.panelSaveButton) {
+            this.panelSaveButton.disabled = !isCustom;
+        }
+        if (this.panelSaveRunButton) {
+            this.panelSaveRunButton.disabled = !isCustom;
+        }
+        if (this.panelResetButton) {
+            this.panelResetButton.classList.toggle('hidden', !this.hasCustomPayload);
+            this.panelResetButton.disabled = !this.hasCustomPayload;
+        }
+    }
+
+    updateSourceButtons() {
+        this.panelSourceButtons.forEach((button) => {
+            const isActive = button.dataset.payloadSource === this.panelSource;
+            button.classList.toggle('bg-primary', isActive);
+            button.classList.toggle('text-white', isActive);
+            button.classList.toggle('bg-white/10', !isActive);
+            button.classList.toggle('text-white/70', !isActive);
+        });
+    }
+
+    async savePayload(runAfterSave = false) {
+        if (!this.selectedEndpointId) return;
+        if (this.panelSource !== 'custom') {
+            this.showPanelMessage('info', 'Custom mode is disabled. Switch to custom to edit payload.');
+            return;
+        }
+        try {
+            const payload = {
+                path_params: parseJsonOrDefault(this.payloadEditors.path.value, {}),
+                query: parseJsonOrDefault(this.payloadEditors.query.value, {}),
+                headers: parseJsonOrDefault(this.payloadEditors.headers.value, {}),
+                body: parseJsonOrDefault(this.payloadEditors.body.value, null),
+            };
+            await this.api.savePayload(this.selectedEndpointId, payload);
+            this.showPanelMessage('success', 'Payload saved successfully.');
+            await this.refresh();
+            if (runAfterSave) {
+                await this.runSingleProbe();
+            }
+        } catch (error) {
+            console.error(error);
+            this.showPanelMessage('error', error.message || 'Failed to save payload');
+        }
+    }
+
+    async resetPayload() {
+        if (!this.selectedEndpointId) return;
+        try {
+            await this.api.deletePayload(this.selectedEndpointId);
+            this.panelSource = 'generated';
+            this.showPanelMessage('success', 'Reverted to generated payload.');
+            await this.refresh();
+        } catch (error) {
+            console.error(error);
+            this.showPanelMessage('error', error.message || 'Failed to reset payload');
+        }
+    }
+
+    showPanelMessage(level, message) {
+        if (!this.panelMessage) return;
+        this.panelMessage.textContent = message;
+        this.panelMessage.classList.remove('hidden', 'text-emerald-400', 'text-red-400', 'text-primary', 'text-yellow-400');
+        switch (level) {
+            case 'success':
+                this.panelMessage.classList.add('text-emerald-400');
+                break;
+            case 'error':
+                this.panelMessage.classList.add('text-red-400');
+                break;
+            case 'warning':
+                this.panelMessage.classList.add('text-yellow-400');
+                break;
+            default:
+                this.panelMessage.classList.add('text-primary');
+        }
+    }
+
+    clearPanelMessage() {
+        if (this.panelMessage) {
+            this.panelMessage.classList.add('hidden');
+            this.panelMessage.textContent = '';
         }
     }
 }

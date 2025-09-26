@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from copy import deepcopy
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -11,7 +13,9 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from .metrics import PulseMetrics
-from .registry import EndpointInfo
+from .payload_store import PulsePayloadStore
+from .registry import EndpointInfo, PulseEndpointRegistry
+from .sample_builder import SamplePayloadBuilder
 
 
 ProbeResultStatus = str
@@ -27,6 +31,7 @@ class ProbeResult:
     latency_ms: Optional[float] = None
     error: Optional[str] = None
     checked_at: Optional[float] = None
+    payload: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -38,6 +43,7 @@ class ProbeResult:
             "latency_ms": self.latency_ms,
             "error": self.error,
             "checked_at": self.checked_at,
+            "payload": self.payload,
         }
 
 
@@ -72,11 +78,15 @@ class PulseProbeManager:
         app,
         metrics: PulseMetrics,
         *,
+        registry: PulseEndpointRegistry,
+        payload_store: PulsePayloadStore,
         concurrency: int = 10,
         request_timeout: float = 10.0,
     ) -> None:
         self.app = app
         self.metrics = metrics
+        self.registry = registry
+        self.payload_store = payload_store
         self.semaphore = asyncio.Semaphore(max(1, concurrency))
         self.request_timeout = request_timeout
         self._jobs: Dict[str, ProbeJob] = {}
@@ -145,8 +155,8 @@ class PulseProbeManager:
         async with self.semaphore:
             result = job.results[endpoint.id]
 
-            # Skip endpoints that require additional input.
-            if endpoint.requires_input:
+            payload = self._prepare_payload(endpoint)
+            if payload is None:
                 result.status = "skipped"
                 result.checked_at = time.time()
                 job.completed += 1
@@ -154,11 +164,33 @@ class PulseProbeManager:
 
             start = time.perf_counter()
             try:
+                formatted_path = self._format_path(endpoint.path, payload.get("path_params", {}))
+                headers = {
+                    **(payload.get("headers") or {}),
+                    "x-pulse-probe": "true",
+                }
+                request_kwargs: Dict[str, Any] = {
+                    "timeout": self.request_timeout,
+                    "params": payload.get("query") or None,
+                    "headers": headers,
+                }
+
+                body = payload.get("body")
+                media_type = payload.get("media_type") or "application/json"
+                if body is not None:
+                    if isinstance(body, (dict, list)) and media_type.startswith("application/json"):
+                        request_kwargs["json"] = body
+                    else:
+                        if isinstance(body, (dict, list)):
+                            request_kwargs["data"] = json.dumps(body)
+                        else:
+                            request_kwargs["data"] = body
+                        request_kwargs.setdefault("headers", {})["content-type"] = media_type
+
                 response = await client.request(
                     endpoint.method,
-                    endpoint.path,
-                    timeout=self.request_timeout,
-                    headers={"x-pulse-probe": "true"},
+                    formatted_path,
+                    **request_kwargs,
                 )
                 duration_ms = (time.perf_counter() - start) * 1000
                 result.status_code = response.status_code
@@ -199,5 +231,30 @@ class PulseProbeManager:
                 )
 
             finally:
+                result.payload = payload
                 job.completed += 1
 
+    def _prepare_payload(self, endpoint: EndpointInfo) -> Optional[Dict[str, Any]]:
+        override = self.payload_store.get(endpoint.id)
+        if override:
+            payload = deepcopy(override)
+            payload["source"] = "custom"
+            return payload
+
+        builder = SamplePayloadBuilder(self.registry.openapi_schema)
+        generated = deepcopy(builder.build(endpoint))
+        if endpoint.has_request_body and generated.get("body") is None:
+            return None
+        if endpoint.has_path_params:
+            path_params = generated.get("path_params", {})
+            if any(value is None for value in path_params.values()):
+                return None
+        generated["source"] = "generated"
+        return generated
+
+    @staticmethod
+    def _format_path(path: str, path_params: Dict[str, Any]) -> str:
+        formatted = path
+        for key, value in (path_params or {}).items():
+            formatted = formatted.replace(f"{{{key}}}", str(value))
+        return formatted

@@ -9,22 +9,26 @@ Instant health monitoring with a beautiful dashboard.
 __version__ = "0.2.0"
 
 import importlib.resources
+from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from .metrics import PulseMetrics
-from .middleware import PulseMiddleware
-from .registry import PulseEndpointRegistry
-from .probe import PulseProbeManager
-from .router import create_pulse_router
 from .constants import (
+    DEFAULT_PAYLOAD_CONFIG_FILENAME,
     PULSE_ENDPOINT_REGISTRY_KEY,
+    PULSE_PAYLOAD_STORE_KEY,
     PULSE_PROBE_MANAGER_KEY,
     PULSE_STATE_KEY,
 )
+from .metrics import PulseMetrics
+from .middleware import PulseMiddleware
+from .payload_store import PulsePayloadStore
+from .probe import PulseProbeManager
+from .registry import PulseEndpointRegistry
+from .router import create_pulse_router
 
 def add_pulse(
     app: FastAPI,
@@ -33,6 +37,7 @@ def add_pulse(
     enable_cors: bool = True,
     metrics: Optional[PulseMetrics] = None,
     metrics_factory: Optional[Callable[[], PulseMetrics]] = None,
+    payload_config_path: Optional[Path | str] = None,
 ):
     """
     Adds pulse monitoring to your FastAPI app with one line of code.
@@ -76,7 +81,17 @@ def add_pulse(
     # 3. Create endpoint registry and probe manager
     registry = PulseEndpointRegistry(app, exclude_prefixes=exclude_prefixes)
     setattr(app.state, PULSE_ENDPOINT_REGISTRY_KEY, registry)
-    probe_manager = PulseProbeManager(app, metrics_instance)
+
+    payload_path = Path(payload_config_path) if payload_config_path else Path(app.root_path) / DEFAULT_PAYLOAD_CONFIG_FILENAME
+    payload_store = PulsePayloadStore(payload_path)
+    setattr(app.state, PULSE_PAYLOAD_STORE_KEY, payload_store)
+
+    probe_manager = PulseProbeManager(
+        app,
+        metrics_instance,
+        registry=registry,
+        payload_store=payload_store,
+    )
     setattr(app.state, PULSE_PROBE_MANAGER_KEY, probe_manager)
 
     # 4. Add the pulse middleware
@@ -114,5 +129,6 @@ __all__ = [
     "PulseMetrics",
     "PULSE_STATE_KEY",
     "PULSE_ENDPOINT_REGISTRY_KEY",
+    "PULSE_PAYLOAD_STORE_KEY",
     "PULSE_PROBE_MANAGER_KEY",
 ]

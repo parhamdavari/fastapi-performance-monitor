@@ -139,3 +139,4 @@ venv.bak/
 
 # Netbeans
 nbproject/
+pulse_probes.json

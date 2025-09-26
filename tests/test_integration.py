@@ -6,10 +6,12 @@ and probe manager work together correctly within a real FastAPI application.
 """
 
 import asyncio
+from urllib.parse import quote
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 from fastapi_pulse import (
     PULSE_STATE_KEY,
@@ -35,6 +37,14 @@ def test_app():
     @app.get("/test/error")
     async def error_endpoint():
         raise RuntimeError("This is a test error")
+
+    class Widget(BaseModel):
+        name: str
+        quantity: int = 1
+
+    @app.post("/test/widget", response_model=Widget)
+    async def create_widget(widget: Widget):
+        return widget
 
     return app
 
@@ -136,6 +146,7 @@ async def test_endpoint_registry_and_probe_flow(client: TestClient):
     endpoint_ids = {entry["id"] for entry in registry_payload["endpoints"]}
     assert "GET /test/success" in endpoint_ids
     assert "GET /test/error" in endpoint_ids
+    assert "POST /test/widget" in endpoint_ids
 
     # Trigger a probe job for all endpoints.
     start_response = client.post("/health/pulse/probe")
@@ -160,3 +171,39 @@ async def test_endpoint_registry_and_probe_flow(client: TestClient):
     statuses = {row["id"]: row["last_probe"]["status"] for row in refreshed["endpoints"]}
     assert statuses["GET /test/success"] in {"healthy", "warning"}
     assert statuses["GET /test/error"] == "critical"
+
+    widget_row = next(item for item in refreshed["endpoints"] if item["id"] == "POST /test/widget")
+    assert widget_row["payload"]["source"] in {"generated", "custom"}
+
+    # Save a custom payload for the widget endpoint and run a probe using it.
+    endpoint_id = "POST /test/widget"
+    custom_payload = {
+        "path_params": {},
+        "query": {"refresh": "true"},
+        "headers": {"x-api-key": "secret"},
+        "body": {"name": "custom", "quantity": 5},
+    }
+    encoded_id = quote(endpoint_id, safe='')
+    save_response = client.put(f"/health/pulse/probe/{encoded_id}/payload", json=custom_payload)
+    assert save_response.status_code == 200
+    assert save_response.json()["payload"]["source"] == "custom"
+
+    custom_job = client.post("/health/pulse/probe", json={"endpoints": [endpoint_id]}).json()
+    job_id = custom_job["job_id"]
+    for _ in range(30):
+        await asyncio.sleep(0.1)
+        status_response = client.get(f"/health/pulse/probe/{job_id}")
+        status = status_response.json()
+        if status["status"] == "completed":
+            break
+    refreshed = client.get("/health/pulse/endpoints").json()
+    widget_row = next(item for item in refreshed["endpoints"] if item["id"] == endpoint_id)
+    assert widget_row["payload"]["source"] == "custom"
+    assert widget_row["payload"]["effective"]["headers"]["x-api-key"] == "secret"
+
+    # Reset payload back to generated and verify.
+    reset_response = client.delete(f"/health/pulse/probe/{encoded_id}/payload")
+    assert reset_response.status_code == 200
+    refreshed = client.get("/health/pulse/endpoints").json()
+    widget_row = next(item for item in refreshed["endpoints"] if item["id"] == endpoint_id)
+    assert widget_row["payload"]["source"] == "generated"
