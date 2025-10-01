@@ -20,13 +20,22 @@ classifiers = [
 dependencies = [
     "fastapi",
     "tdigest>=0.5.2",
+    "httpx>=0.23.0",  # Required for both testing and CLI
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/parhamdavari/fastapi-pulse"
 "Bug Tracker" = "https://github.com/parhamdavari/fastapi-pulse/issues"
 
+[project.scripts]
+pulse-cli = "fastapi_pulse.cli:main"
+
 [project.optional-dependencies]
+cli = [
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0.0",
+]
 test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",      # For measuring coverage

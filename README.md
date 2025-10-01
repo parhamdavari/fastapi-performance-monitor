@@ -11,11 +11,14 @@ Check your FastAPI's pulse with one line of code. Instant health monitoring with
 - **One line setup**: `add_pulse(app)` and you're monitoring
 - **Zero configuration**: Sensible defaults, works out of the box
 - **Beautiful dashboard**: Live metrics at `/pulse`
+- **CLI tool**: Health check endpoints from terminal or CI/CD (`pulse-cli`)
 - **Production ready**: Rolling windows, efficient percentiles, zero memory leaks
 - **Developer friendly**: Logs slow requests and errors automatically
 - **One-click health checks**: Auto-discover endpoints and probe them directly from the UI
 
 ## Quickstart
+
+### Library Integration
 
 ```bash
 pip install fastapi-pulse
@@ -32,6 +35,21 @@ add_pulse(app)  # That's it!
 def read_root():
     return {"message": "Hello, world!"}
 ```
+
+### CLI Tool (Optional)
+
+```bash
+# Install with CLI support
+pip install "fastapi-pulse[cli]"
+
+# Health check your API from terminal
+pulse-cli check http://localhost:8000
+
+# CI/CD integration
+pulse-cli check http://localhost:8000 --format json --fail-on-error
+```
+
+📖 **[Full CLI Documentation](./CLI_README.md)**
 
 ## Your API's Vital Signs
 

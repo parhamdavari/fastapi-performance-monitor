@@ -1,0 +1,47 @@
+# FastAPI Pulse CLI Configuration Example
+# Copy this file to pulse-config.yaml and customize for your needs
+
+# Base URL of your FastAPI application
+base_url: "http://localhost:8000"
+
+# Request timeout in seconds
+timeout: 10.0
+
+# Maximum concurrent probe requests
+concurrency: 10
+
+# Output preferences
+output:
+  format: "table"  # Options: json, table, summary
+  verbose: true
+
+# Endpoint filtering (optional)
+endpoints:
+  # Include specific patterns
+  include:
+    - "GET /api/*"
+    - "POST /api/*"
+
+  # Exclude specific patterns
+  exclude:
+    - "/admin/*"
+    - "/internal/*"
+    - "/docs"
+    - "/openapi.json"
+
+# Health thresholds
+thresholds:
+  # Latency threshold in milliseconds
+  # Endpoints slower than this will be marked as "warning"
+  max_latency_ms: 1000
+
+# Optional authentication headers
+# Environment variable expansion is supported: ${VAR_NAME}
+# auth:
+#   headers:
+#     Authorization: "Bearer ${API_TOKEN}"
+#     X-API-Key: "${API_KEY}"
+#     X-Custom-Header: "value"
+
+# Usage:
+# pulse-cli check --config pulse-config.yaml
