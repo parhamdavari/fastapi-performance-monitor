@@ -1,24 +1,17 @@
 # FastAPI Pulse
 
-Check your FastAPI's pulse with one line of code. Instant health monitoring with a beautiful dashboard.
+> Keep an eye on your FastAPI app with one joyful line.
 
+[![PyPI](https://badge.fury.io/py/fastapi-pulse.svg)](https://pypi.org/project/fastapi-pulse/)
+[![Python](https://img.shields.io/pypi/pyversions/fastapi-pulse.svg?logo=python&logoColor=ffdd54)](https://pypi.org/project/fastapi-pulse/)
 [![CI](https://github.com/parhamdavari/fastapi-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/parhamdavari/fastapi-pulse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1c7ed6.svg)](./LICENSE)
+
+FastAPI Pulse makes monitoring feel natural: drop in `add_pulse(app)` and you instantly get live dashboards, smart probes, and a CLI that plays nicely with CI/CD. No boilerplate. No config jungle. Just signal.
 
 ---
 
-## Why FastAPI Pulse?
-
-- **One line setup**: `add_pulse(app)` and you're monitoring
-- **Zero configuration**: Sensible defaults, works out of the box
-- **Beautiful dashboard**: Live metrics at `/pulse`
-- **CLI tool**: Health check endpoints from terminal or CI/CD (`pulse-cli`)
-- **Production ready**: Rolling windows, efficient percentiles, zero memory leaks
-- **Developer friendly**: Logs slow requests and errors automatically
-- **One-click health checks**: Auto-discover endpoints and probe them directly from the UI
-
-## Quickstart
-
-### Library Integration
+## Two-Breath Install
 
 ```bash
 pip install fastapi-pulse
@@ -29,110 +22,92 @@ from fastapi import FastAPI
 from fastapi_pulse import add_pulse
 
 app = FastAPI()
-add_pulse(app)  # That's it!
-
-@app.get("/")
-def read_root():
-    return {"message": "Hello, world!"}
+add_pulse(app)  # monitor, dashboard, probes – all unlocked
 ```
 
-### CLI Tool (Optional)
+Want the CLI too? `pip install "fastapi-pulse[cli]"`
 
-```bash
-# Install with CLI support
-pip install "fastapi-pulse[cli]"
+---
 
-# Health check your API from terminal
-pulse-cli check http://localhost:8000
+## Why People Love It
 
-# CI/CD integration
-pulse-cli check http://localhost:8000 --format json --fail-on-error
-```
+- **One-line setup** – call `add_pulse(app)` and ship it.
+- **Peaceful defaults** – zero configuration for the common path.
+- **Live dashboard** – `/pulse` shows latency, throughput, success rates.
+- **Probing built-in** – discover endpoints and fire health checks from the UI or CLI.
+- **Production-safe** – TDigest percentiles, rolling windows, no memory leaks.
 
-📖 **[Full CLI Documentation](./CLI_README.md)**
+---
 
-## Your API's Vital Signs
+## What You Get
 
-| What                    | Where                     |
-|------------------------|---------------------------|
-| **Live Dashboard**   | `GET /pulse`              |
-| **Endpoints Console** | `GET /pulse/endpoints.html` |
-| **JSON Metrics**     | `GET /health/pulse`       |
-| **Endpoint Registry** | `GET /health/pulse/endpoints` |
-| **Trigger Probe**     | `POST /health/pulse/probe` |
-| **Probe Status**      | `GET /health/pulse/probe/{job_id}` |
+| Experience                | Endpoint                          |
+|--------------------------|----------------------------------|
+| Friendly dashboard       | `GET /pulse`                     |
+| Endpoint explorer        | `GET /pulse/endpoints.html`      |
+| JSON metrics             | `GET /health/pulse`              |
+| Probe registry           | `GET /health/pulse/endpoints`    |
+| Trigger a probe          | `POST /health/pulse/probe`       |
+| Check probe status       | `GET /health/pulse/probe/{id}`   |
 
-The dashboard shows your API's heartbeat in real-time. The JSON endpoint gives you raw data for alerts and automation.
+Add your own monitors using the JSON API or wire it into your favorite alerting tool—the payload mirrors what the dashboard sees.
 
-### `/health/pulse` response schema
+---
 
-The JSON payload now exposes the same metrics the dashboard consumes in production:
-
-- `summary`
-  - `requests_per_minute`: Rolling window request rate (based on the configured `window_seconds`)
-  - `window_request_count`: Number of requests currently inside the rolling window
-  - `success_rate`: Percentage of successful responses in the window
-  - `p50_response_time`, `p95_response_time`, `p99_response_time`: Real TDigest percentiles when enough samples exist
-- `status_codes`: Per-endpoint histogram of HTTP status codes for error distribution charts
-
-Existing fields (`total_requests`, `error_rate`, etc.) are unchanged, so consumers that do not need the new metrics can safely ignore them.
-
-## Configuration
+## Tiny Tweaks When You Need Them
 
 ```python
 add_pulse(
     app,
-    enable_detailed_logging=True,  # Log slow requests (>1s) and errors
-    dashboard_path="/pulse",       # Where to mount the dashboard
-    enable_cors=True,              # Allow cross-origin requests
-    payload_config_path="pulse_probes.json",  # Persist custom probe payloads
+    dashboard_path="/pulse",          # move the UI
+    enable_detailed_logging=False,    # quiet production logs
+    payload_config_path="pulse_probes.json",  # persist probe payloads
 )
-
-- If `payload_config_path` is omitted, Pulse writes overrides to `pulse_probes.json` relative to your FastAPI app's root path.
 ```
 
-## What Gets Measured
-
-**Request Metrics**:
-
-- Latency percentiles (P95, P99)
-- Request count and error rates
-- Response time distribution
-
-**Smart Grouping**:
-
-- `/users/123` → `/users/{id}`
-- `/api/v1/posts/456` → `/api/v1/posts/{id}`
-
-**Rolling Windows**: Metrics automatically expire after 5 minutes, preventing memory leaks in long-running applications.
-
-## Custom Metrics (Advanced)
+Prefer a custom metrics window?
 
 ```python
-from fastapi_pulse import add_pulse, PulseMetrics
+from fastapi_pulse import PulseMetrics
 
-# Create custom metrics collector
-metrics = PulseMetrics(window_seconds=600)  # 10-minute window
+metrics = PulseMetrics(window_seconds=600)
 add_pulse(app, metrics=metrics)
-
-# Access metrics in your routes
-@app.get("/custom")
-def custom_endpoint():
-    pulse_metrics = app.state.fastapi_pulse_metrics
-    stats = pulse_metrics.get_metrics()
-    return {"current_load": stats["summary"]["total_requests"]}
 ```
 
-## Production Tips
+---
 
-- Enable `enable_detailed_logging=False` in production to reduce log noise
-- Use the JSON endpoint (`/health/pulse`) for monitoring systems like Prometheus
-- The dashboard is optimized for development; build custom dashboards using the JSON API for production
+## CLI In Your Pocket
 
-## Contributing
+```bash
+pulse-cli check http://localhost:8000
+pulse-cli check https://api.example.com --fail-on-error --format json
+```
 
-Issues and pull requests welcome! This tool is designed to be simple and reliable.
+📚 Dive deeper in [CLI_README.md](./CLI_README.md).
+
+---
+
+## Trying the TestPyPI Build
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install --upgrade pip
+pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            fastapi-pulse==0.2.0
+python -c "import fastapi_pulse; print(fastapi_pulse.__version__)"
+```
+
+FastAPI Pulse is intentionally light—keep the virtualenv clean, and you can flip between published builds in seconds.
+
+---
+
+## Contribute With Ease
+
+Issues and pull requests are welcome. The guiding principle is the same as the product: simple, helpful, and kind to the next developer.
+
+---
 
 ## License
 
-MIT License - see `LICENSE` file for details.
+MIT © [Parham Davari](./LICENSE)
