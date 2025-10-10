@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from fastapi_pulse import (
     PULSE_STATE_KEY,
+    PulseMetrics,
     add_pulse,
 )
 
@@ -135,6 +136,12 @@ async def test_exception_is_translated_to_500_response(client: TestClient):
     error_stats = data["GET /test/error"]
     assert error_stats["total_requests"] == 1
     assert error_stats["error_count"] == 1
+
+
+def test_add_pulse_rejects_conflicting_metrics():
+    app = FastAPI()
+    with pytest.raises(ValueError):
+        add_pulse(app, metrics=PulseMetrics(), metrics_factory=lambda: PulseMetrics())
 
 
 async def test_endpoint_registry_and_probe_flow(client: TestClient):

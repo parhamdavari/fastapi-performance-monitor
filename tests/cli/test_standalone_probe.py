@@ -187,3 +187,14 @@ async def test_skipped_endpoint_without_payload(test_app):
         result = await client._probe_single_endpoint(http_client, endpoints_meta[0])
 
         assert result.status == "skipped"
+
+
+async def test_create_client_variants(test_app):
+    client = StandaloneProbeClient(base_url="http://testserver")
+    async with client._create_client() as http_client:
+        assert str(http_client.base_url) == "http://testserver"
+
+    client_with_asgi = StandaloneProbeClient(base_url="http://testserver", asgi_app=test_app)
+    async with client_with_asgi._create_client() as http_client:
+        response = await http_client.get("/health/pulse")
+        assert response.status_code == 200

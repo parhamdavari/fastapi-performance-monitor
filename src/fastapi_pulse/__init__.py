@@ -113,11 +113,13 @@ def add_pulse(
     # 6. Mount the static dashboard, finding its path within the package
     try:
         # This is the robust way to find package data files
-        static_path = importlib.resources.files(__name__) / "static"
-        
-        # Convert to string path for StaticFiles compatibility
-        static_path_str = str(static_path)
-        
+        try:
+            static_path = importlib.resources.files(__name__) / "static"  # type: ignore[attr-defined]
+            static_path_str = str(static_path)
+        except AttributeError:
+            with importlib.resources.path(__name__, "static") as data_path:
+                static_path_str = str(data_path)
+
         # Mount static files directory
         app.mount(
             dashboard_path,
