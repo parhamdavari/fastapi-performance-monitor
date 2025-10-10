@@ -13,9 +13,8 @@ from fastapi.testclient import TestClient
 from fastapi_pulse import add_pulse
 
 
-@pytest.fixture
-def test_app():
-    """Create a test FastAPI app."""
+def create_test_app() -> FastAPI:
+    """Factory that builds the FastAPI app used in CLI integration tests."""
     app = FastAPI()
     add_pulse(app)
 
@@ -26,6 +25,7 @@ def test_app():
     @app.get("/api/slow")
     async def slow():
         import asyncio
+
         await asyncio.sleep(0.5)
         return {"message": "slow response"}
 
@@ -34,6 +34,12 @@ def test_app():
         raise RuntimeError("Test error")
 
     return app
+
+
+@pytest.fixture
+def test_app():
+    """Create a test FastAPI app."""
+    return create_test_app()
 
 
 def test_cli_entry_point_exists():
@@ -79,6 +85,8 @@ async def test_cli_check_with_running_server(test_app):
                 base_url,
                 "--format",
                 "json",
+                "--asgi-app",
+                "tests.cli.test_cli_integration:create_test_app",
             ],
             capture_output=True,
             text=True,
@@ -114,6 +122,8 @@ async def test_cli_fail_on_error_flag(test_app):
                 "--format",
                 "json",
                 "--fail-on-error",
+                "--asgi-app",
+                "tests.cli.test_cli_integration:create_test_app",
             ],
             capture_output=True,
             text=True,
@@ -150,6 +160,8 @@ async def test_cli_specific_endpoints_filter(test_app):
                 "json",
                 "--endpoints",
                 "GET /api/health",
+                "--asgi-app",
+                "tests.cli.test_cli_integration:create_test_app",
             ],
             capture_output=True,
             text=True,
@@ -178,6 +190,8 @@ async def test_cli_summary_format(test_app):
                 base_url,
                 "--format",
                 "summary",
+                "--asgi-app",
+                "tests.cli.test_cli_integration:create_test_app",
             ],
             capture_output=True,
             text=True,
@@ -204,6 +218,8 @@ async def test_cli_table_format(test_app):
                 base_url,
                 "--format",
                 "table",
+                "--asgi-app",
+                "tests.cli.test_cli_integration:create_test_app",
             ],
             capture_output=True,
             text=True,
@@ -233,6 +249,8 @@ async def test_cli_custom_timeout(test_app):
                 "json",
                 "--timeout",
                 "0.1",
+                "--asgi-app",
+                "tests.cli.test_cli_integration:create_test_app",
             ],
             capture_output=True,
             text=True,

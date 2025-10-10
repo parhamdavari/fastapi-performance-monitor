@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 import logging
 import re
-from typing import Callable
+from typing import Callable, Optional, Tuple
 
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import Message, Receive, Scope, Send
@@ -28,7 +28,7 @@ class PulseMiddleware:
         *,
         metrics: PulseMetrics,
         enable_detailed_logging: bool = True,
-        exclude_path_prefixes: tuple[str, ...] | None = None,
+        exclude_path_prefixes: Optional[Tuple[str, ...]] = None,
     ):
         self.app = app
         self.enable_detailed_logging = enable_detailed_logging
@@ -54,7 +54,7 @@ class PulseMiddleware:
 
         start_time = time.perf_counter()
         status_code = 500
-        duration_ms: float | None = None
+        duration_ms: Optional[float] = None
         response_started = False
 
         async def send_wrapper(message: Message) -> None:
@@ -180,7 +180,7 @@ class PulseMiddleware:
                     }
                 )
 
-    def _ensure_duration(self, cached_duration: float | None, start_time: float) -> float:
+    def _ensure_duration(self, cached_duration: Optional[float], start_time: float) -> float:
         """Return the cached duration if present, otherwise compute it."""
         if cached_duration is not None:
             return cached_duration

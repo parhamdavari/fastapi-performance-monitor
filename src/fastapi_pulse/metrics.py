@@ -7,7 +7,7 @@ import time
 import math
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Dict, Any, Deque
+from typing import Dict, Any, Deque, Optional
 
 from tdigest import TDigest
 
@@ -38,7 +38,7 @@ class RollingWindowDigest:
         self.K = K
         self._buckets: Deque[_DigestBucket] = deque()
 
-    def add(self, value: float, timestamp: float | None = None) -> None:
+    def add(self, value: float, timestamp: Optional[float] = None) -> None:
         """Add a latency sample into the rolling window."""
         now = time.time() if timestamp is None else timestamp
         self._trim(now)
@@ -77,7 +77,7 @@ class RollingWindowDigest:
             return 0.0
         return total / count
 
-    def percentile(self, percentile: float) -> float | None:
+    def percentile(self, percentile: float) -> Optional[float]:
         """Return the requested percentile (0-100) if enough data exists."""
         self._refresh()
         merged = TDigest(delta=self.delta, K=self.K)

@@ -56,7 +56,7 @@ class ProbeJob:
     started_at: Optional[float] = None
     completed_at: Optional[float] = None
     results: Dict[str, ProbeResult] = field(default_factory=dict)
-    _future: asyncio.Future | None = None
+    _future: Optional[asyncio.Future] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {

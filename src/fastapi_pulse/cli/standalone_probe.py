@@ -50,6 +50,7 @@ class StandaloneProbeClient:
         timeout: float = 10.0,
         concurrency: int = 10,
         custom_headers: Optional[Dict[str, str]] = None,
+        asgi_app: Optional[Any] = None,
     ):
         """Initialize the standalone probe client.
 
@@ -63,6 +64,7 @@ class StandaloneProbeClient:
         self.timeout = timeout
         self.semaphore = asyncio.Semaphore(max(1, concurrency))
         self.custom_headers = custom_headers or {}
+        self.asgi_app = asgi_app
 
     async def fetch_endpoints(self) -> List[Dict[str, Any]]:
         """Fetch available endpoints from the Pulse API.
@@ -73,11 +75,10 @@ class StandaloneProbeClient:
         Raises:
             httpx.HTTPError: If the request fails
         """
-        async with httpx.AsyncClient() as client:
+        async with self._create_client() as client:
             response = await client.get(
-                f"{self.base_url}/health/pulse/endpoints",
-                headers=self.custom_headers,
-                timeout=self.timeout,
+                "/health/pulse/endpoints",
+                headers=self.custom_headers or None,
             )
             response.raise_for_status()
             data = response.json()
@@ -95,7 +96,7 @@ class StandaloneProbeClient:
         Returns:
             List of probe results
         """
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
+        async with self._create_client() as client:
             tasks = [
                 self._probe_single_endpoint(client, endpoint)
                 for endpoint in endpoints
@@ -230,6 +231,20 @@ class StandaloneProbeClient:
         for key, value in (path_params or {}).items():
             formatted = formatted.replace(f"{{{key}}}", str(value))
         return formatted
+
+    def _create_client(self) -> httpx.AsyncClient:
+        if self.asgi_app is not None:
+            transport = httpx.ASGITransport(app=self.asgi_app)
+            return httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=self.timeout,
+                transport=transport,
+            )
+
+        return httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=self.timeout,
+        )
 
 
 __all__ = ["StandaloneProbeClient", "EndpointProbeResult"]

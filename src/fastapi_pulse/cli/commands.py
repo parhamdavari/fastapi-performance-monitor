@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import inspect
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import click
 
@@ -68,6 +70,14 @@ from .standalone_probe import StandaloneProbeClient
     type=click.Path(exists=True, path_type=Path),
     help="Configuration file path (YAML format)",
 )
+@click.option(
+    "--asgi-app",
+    "asgi_app_path",
+    type=str,
+    default=None,
+    help="Import path to ASGI app or factory (module:attribute). "
+    "If provided, requests run in-process via ASGI transport.",
+)
 def check(
     base_url: str,
     endpoints: Tuple[str, ...],
@@ -79,6 +89,7 @@ def check(
     interval: int,
     fail_on_error: bool,
     config_file: Optional[Path],
+    asgi_app_path: Optional[str],
 ):
     """Check health of FastAPI endpoints.
 
@@ -122,6 +133,18 @@ def check(
         endpoints=endpoints,
     )
 
+    if asgi_app_path:
+        merged_config["asgi_app"] = asgi_app_path
+
+    asgi_app = None
+    if merged_config.get("asgi_app"):
+        try:
+            asgi_app = _load_asgi_app(merged_config["asgi_app"])
+        except Exception as exc:
+            raise click.ClickException(
+                f"Failed to load ASGI app '{merged_config['asgi_app']}': {exc}"
+            ) from exc
+
     # Parse custom headers
     headers_dict = _parse_headers(merged_config["custom_headers"])
 
@@ -137,6 +160,7 @@ def check(
                 merged_config["output_format"],
                 interval,
                 fail_on_error,
+                asgi_app,
             )
         else:
             exit_code = asyncio.run(
@@ -148,6 +172,7 @@ def check(
                     merged_config["endpoints"],
                     merged_config["output_format"],
                     fail_on_error,
+                    asgi_app,
                 )
             )
             sys.exit(exit_code)
@@ -167,6 +192,7 @@ async def _run_probe(
     specific_endpoints: List[str],
     output_format: str,
     fail_on_error: bool,
+    asgi_app: Optional[Any] = None,
 ) -> int:
     """Run the probe operation.
 
@@ -178,6 +204,7 @@ async def _run_probe(
         specific_endpoints: List of specific endpoint IDs to check
         output_format: Output format type
         fail_on_error: Whether to exit with error code on failures
+        asgi_app: Optional ASGI app instance to run requests in-process
 
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -187,6 +214,7 @@ async def _run_probe(
         timeout=timeout,
         concurrency=concurrency,
         custom_headers=headers,
+        asgi_app=asgi_app,
     )
 
     try:
@@ -242,6 +270,7 @@ def _run_watch_mode(
     output_format: str,
     interval: int,
     fail_on_error: bool,
+    asgi_app: Optional[Any] = None,
 ):
     """Run probe in watch mode (continuous monitoring).
 
@@ -254,6 +283,7 @@ def _run_watch_mode(
         output_format: Output format type
         interval: Seconds between checks
         fail_on_error: Whether to exit with error code on failures
+        asgi_app: Optional ASGI app to run in-process requests
     """
     click.echo(f"Starting watch mode (checking every {interval} seconds). Press Ctrl+C to stop.\n")
 
@@ -271,6 +301,7 @@ def _run_watch_mode(
                 specific_endpoints,
                 output_format,
                 fail_on_error,
+                asgi_app,
             )
         )
 
@@ -302,6 +333,28 @@ def _parse_headers(header_strings: Tuple[str, ...]) -> dict:
         key, value = header_str.split(":", 1)
         headers[key.strip()] = value.strip()
     return headers
+
+
+def _load_asgi_app(import_path: str):
+    """Import an ASGI app or factory from a module path like module:attribute."""
+    module_path, sep, attr_path = import_path.partition(":")
+    if not module_path or not sep or not attr_path:
+        raise ValueError("Import path must be in the format 'module:attribute'")
+
+    module = importlib.import_module(module_path)
+    target: Any = module
+    for part in attr_path.split("."):
+        if not hasattr(target, part):
+            raise AttributeError(f"Attribute '{part}' not found while resolving '{import_path}'")
+        target = getattr(target, part)
+
+    if inspect.iscoroutinefunction(target):
+        return asyncio.run(target())  # type: ignore[arg-type]
+    if inspect.iscoroutine(target):
+        return asyncio.run(target)  # type: ignore[arg-type]
+    if callable(target):
+        return target()
+    return target
 
 
 def _load_config(config_path: Path) -> dict:
@@ -362,6 +415,7 @@ def _merge_config(
         )
         or custom_headers,
         "concurrency": file_config.get("concurrency", concurrency),
+        "asgi_app": file_config.get("transport", {}).get("asgi_app"),
         "endpoints": list(endpoints) or file_config.get("endpoints", {}).get("include", []),
     }
 

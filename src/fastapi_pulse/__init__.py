@@ -6,11 +6,14 @@ Check your FastAPI's pulse with one line of code.
 Instant health monitoring with a beautiful dashboard.
 """
 
+from __future__ import annotations
+
 __version__ = "0.2.0"
 
 import importlib.resources
+import logging
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
@@ -30,6 +33,8 @@ from .probe import PulseProbeManager
 from .registry import PulseEndpointRegistry
 from .router import create_pulse_router
 
+logger = logging.getLogger(__name__)
+
 def add_pulse(
     app: FastAPI,
     enable_detailed_logging: bool = True,
@@ -37,7 +42,7 @@ def add_pulse(
     enable_cors: bool = True,
     metrics: Optional[PulseMetrics] = None,
     metrics_factory: Optional[Callable[[], PulseMetrics]] = None,
-    payload_config_path: Optional[Path | str] = None,
+    payload_config_path: Optional[Union[Path, str]] = None,
 ):
     """
     Adds pulse monitoring to your FastAPI app with one line of code.
@@ -119,9 +124,9 @@ def add_pulse(
             StaticFiles(directory=static_path_str, html=True),
             name="pulse_dashboard"
         )
-        print(f"Pulse dashboard mounted at: {dashboard_path}")
+        logger.info("Pulse dashboard mounted at %s", dashboard_path)
     except Exception as e:
-        print(f"Warning: Could not mount pulse dashboard: {e}")
+        logger.warning("Could not mount pulse dashboard: %s", e)
 
 # Expose a clean public API for the package
 __all__ = [

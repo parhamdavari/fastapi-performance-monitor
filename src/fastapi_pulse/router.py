@@ -229,7 +229,7 @@ def create_pulse_router(metrics: PulseMetrics) -> APIRouter:
         return response
 
     @router.post("/pulse/probe")
-    async def trigger_probe(request: Request, payload: ProbeRequest | None = None):
+    async def trigger_probe(request: Request, payload: Optional[ProbeRequest] = None):
         registry = _get_registry(request)
         manager = _get_probe_manager(request)
 

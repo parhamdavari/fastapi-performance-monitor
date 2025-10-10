@@ -40,7 +40,7 @@ class EndpointInfo:
 class PulseEndpointRegistry:
     """Caches endpoint metadata discovered from a FastAPI application's OpenAPI spec."""
 
-    def __init__(self, app: FastAPI, *, exclude_prefixes: Iterable[str] | None = None) -> None:
+    def __init__(self, app: FastAPI, *, exclude_prefixes: Optional[Iterable[str]] = None) -> None:
         self.app = app
         self._endpoints: List[EndpointInfo] = []
         self._schema_hash: Optional[str] = None
